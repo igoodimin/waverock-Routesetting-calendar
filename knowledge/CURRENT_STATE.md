@@ -65,3 +65,10 @@
 - GitHub에 빠져 있던 .gitignore, package.json, 테스트, Supabase SQL, 프로젝트 지식을 추가하고 README에 실제 저장소·운영 주소를 반영했다.
 - 앱 코드는 변경하지 않았다. 이번 검증 범위는 Git diff 검사, 푸시 후 원격·로컬 커밋 일치 및 작업 폴더 청결 상태다. 브라우저·서버 검증은 재실행하지 않는다.
 - 이후 작업은 git status로 상태 확인 후 진행하고, 변경 커밋 후 git push로 동기화한다.
+
+## 세션 인수인계 — 2026-10-12 Git 동기화 완료
+- 사용자가 Mac 터미널에서 GitHub 인증 후 푸시를 완료했다.
+- 에이전트가 git ls-remote origin refs/heads/main으로 확인: 로컬 HEAD와 GitHub main 모두 ddb9e481d4065a89c26740cf9124f81ab2947bf4로 일치했다. 당시 git status는 변경 없이 origin/main과 동기화된 상태였다.
+- git diff --cached --check 통과. 앱 코드 변경이 없어 앱 테스트·브라우저 검증은 재실행하지 않았다.
+- 다음 대화: knowledge/INDEX.md와 이 문서를 읽고 git status --short --branch로 상태 확인 후 사용자 후속 요청부터 시작한다. 미완료 기능 작업은 없다.
+- 사용자의 추가 요청에 따라 이 인수인계 기록도 별도 커밋·푸시 대상으로 포함했다. 최신 동기화 여부는 git status와 원격 main 비교로 확인한다.
