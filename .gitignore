@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+.env
+.env.*
+assets/*.ttf
+assets/*.otf
+assets/*.woff
+assets/*.woff2
