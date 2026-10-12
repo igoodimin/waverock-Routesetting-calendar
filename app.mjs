@@ -1,22 +1,31 @@
-import {configured,readEvents,writeEvent,removeEvent} from './shared-store.mjs';
+import {officialHoliday,holidayName,supportedHolidayYear} from './holidays.mjs';
+import {configured,readEvents,writeEvent,removeEvent,readHolidays,writeHoliday} from './shared-store.mjs';
 import {BRANCHES,calendarDays,segments,validEvent,withDpi} from './calendar.mjs';
 const $=id=>document.getElementById(id);
-const now=new Date();let state={year:now.getFullYear(),month:now.getMonth()+1,branch:'남천점',events:[]};
+const now=new Date();let state={year:now.getFullYear(),month:now.getMonth()+1,branch:'남천점',events:[],holidays:[]};
 const VIEW_KEY='waverock.calendar.view.v1';
 try {const saved=JSON.parse(localStorage.getItem(VIEW_KEY)||'null');
  if(saved&&Number.isInteger(saved.year)&&saved.year>=1900&&saved.year<=2200&&Number.isInteger(saved.month)&&saved.month>=1&&saved.month<=12){state.year=saved.year;state.month=saved.month;if(Object.hasOwn(BRANCHES,saved.branch))state.branch=saved.branch;}
 }catch{}
 function status(message){$('status').textContent=message;}
 function save(){try{localStorage.setItem(VIEW_KEY,JSON.stringify({year:state.year,month:state.month,branch:state.branch}));}catch{}}
-let sharedReady=false,syncing=false,busy=false,activeVersion;
+let sharedReady=false,syncing=false,busy=false,activeVersion,holidayVersion,holidaysReady=false;
 async function syncEvents(){
  if(!configured||syncing||busy||$('editor').open)return;
  syncing=true;
- try{const events=await readEvents();if(!busy&&!$('editor').open){state.events=events;sharedReady=true;render();status('공용 일정 동기화 완료 · 누구나 편집 가능');}}
- catch(error){status(error.message);}
+ try{
+  const [events,holidays]=await Promise.allSettled([readEvents(),readHolidays()]);
+  if(!busy&&!$('editor').open){
+   if(events.status==='fulfilled'){state.events=events.value;sharedReady=true;}
+   holidaysReady=holidays.status==='fulfilled';
+   if(holidaysReady)state.holidays=holidays.value;
+   render();
+   status(events.status==='rejected'?events.reason.message:!holidaysReady?'일정 동기화 완료 · 공휴일 저장 연결이 필요합니다. 공휴일 SQL 적용 또는 연결 상태를 확인해 주세요.':'공용 일정·공휴일 동기화 완료 · 누구나 편집 가능');
+  }
+ }catch(error){status(error.message);}
  finally{syncing=false;}
 }
-function editorBusy(value){busy=value;for(const el of $('edit-form').elements)el.disabled=value;}
+function editorBusy(value){busy=value;for(const el of $('edit-form').elements)el.disabled=value;if(!value)$('holiday-name').disabled=$('holiday-mode').value==='off';}
 for(let i=1;i<=12;i++)$('month').add(new Option(`${i}월`,i));
 for(const id of ['branch','edit-branch'])for(const branch of Object.keys(BRANCHES))$(id).add(new Option(branch,branch));
 $('year').value=state.year;$('month').value=state.month;$('branch').value=state.branch;
@@ -36,7 +45,8 @@ function fitText(text,x,y,width,font,color='#fff',align='left'){
 function drawCard(piece){
  const {event,row,start,end,lane}=piece;
  const rows=pieces.filter(p=>p.row===row);const lanes=Math.max(...rows.map(p=>p.lane))+1;
- const scale=Math.min(1,90/(lanes*53+(lanes-1)*3));
+ const hasHoliday=days.slice(row*7,row*7+7).some(day=>holidayName(day,state.holidays));
+ const scale=Math.min(1,(hasHoliday?66:90)/(lanes*53+(lanes-1)*3));
  const h=53*scale, gap=3*scale;
  const x=GRID.x+start*GRID.cw,w=(end-start+1)*GRID.cw;
  const y=GRID.y+row*GRID.rh+(lanes===1?67:GRID.rh-10-(h*lanes+gap*(lanes-1)))+lane*(h+gap);
@@ -62,7 +72,13 @@ function render(){
  if(!ready)return;
  days=calendarDays(state.year,state.month);pieces=segments(state.events,days);boxes=[];
  ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,1080,1350);ctx.drawImage(bg,0,0,1080,1350);
- days.forEach((day,i)=>{const d=new Date(`${day}T00:00:00Z`);ctx.font='900 20px CalendarDate, Pretendard, sans-serif';ctx.fillStyle=i%7===0?'#ef3117':i%7===6?'#3f83c5':'#251d19';ctx.textAlign='right';ctx.fillText(`${d.getUTCMonth()+1}/${d.getUTCDate()}`,GRID.x+(i%7+1)*GRID.cw-15,GRID.y+Math.floor(i/7)*GRID.rh+27);});ctx.textAlign='left';
+ days.forEach((day,i)=>{
+  const d=new Date(`${day}T00:00:00Z`),name=holidayName(day,state.holidays);
+  const x=GRID.x+(i%7+1)*GRID.cw-15,y=GRID.y+Math.floor(i/7)*GRID.rh;
+  ctx.font='900 20px CalendarDate, Pretendard, sans-serif';ctx.fillStyle=name||i%7===0?'#ef3117':i%7===6?'#3f83c5':'#251d19';ctx.textAlign='right';ctx.fillText(`${d.getUTCMonth()+1}/${d.getUTCDate()}`,x,y+27);
+  if(name)fitText(name,x,y+49,GRID.cw-24,'700 16px Pretendard','#ef3117','right');
+ });ctx.textAlign='left';
+ $('holiday-coverage').textContent=days.some(day=>!supportedHolidayYear(day.slice(0,4)))?'자동 공휴일은 2026·2027년을 지원합니다. 그 외 연도는 날짜 팝업에서 직접 입력하세요.':'한국 공휴일 자동 표시 · 날짜 팝업 하단에서 수정 가능';
  pieces.forEach(drawCard);
  const overlay=$('interaction');overlay.replaceChildren();
  days.forEach((day,i)=>{const el=document.createElement('button');el.className='cell';el.dataset.index=i;el.setAttribute('aria-label',`${day} 세팅 일정 추가`);position(el,{x:GRID.x+i%7*GRID.cw,y:GRID.y+Math.floor(i/7)*GRID.rh,w:GRID.cw,h:GRID.rh});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();create(i,i);}});overlay.append(el);});
@@ -84,7 +100,7 @@ $('interaction').onlostpointercapture=()=>{if(drag){drag=null;selectRange();}};
 function changeMonth(){const year=Number($('year').value),month=Number($('month').value);if(!Number.isInteger(year)||year<1900||year>2200){status('년도는 1900~2200 사이로 입력해 주세요.');return;}state.year=year;state.month=month;save();render();}
 $('year').onchange=changeMonth;$('month').onchange=changeMonth;$('branch').onchange=()=>{state.branch=$('branch').value;sectors();save();};
 function editorSectors(){const select=$('edit-sector-choice'),value=$('edit-sector').value;select.replaceChildren();for(const sector of BRANCHES[$('edit-branch').value].sectors)select.add(new Option(sector,sector));select.add(new Option('직접 입력',''));select.value=BRANCHES[$('edit-branch').value].sectors.includes(value)?value:'';}
-function openEditor(e){if(!sharedReady){status('공용 서버 연결이 필요합니다. 연결 후 다시 시도해 주세요.');return;}activeVersion=e.version;active=e.id??null;for(const key of ['branch','sector','start','end','time','note'])$(`edit-${key}`).value=e[key];editorSectors();$('editor-title').textContent=active?'세팅 일정 수정':'세팅 일정 추가';$('editor-save').textContent=active?'수정 저장':'일정 추가';$('delete').hidden=!active;$('form-error').textContent='';$('editor').showModal();}
+function openEditor(e){if(!sharedReady){status('공용 서버 연결이 필요합니다. 연결 후 다시 시도해 주세요.');return;}activeVersion=e.version;active=e.id??null;for(const key of ['branch','sector','start','end','time','note'])$(`edit-${key}`).value=e[key];editorSectors();$('editor-title').textContent=active?'세팅 일정 수정':'세팅 일정 추가';$('editor-save').textContent=active?'수정 저장':'일정 추가';$('delete').hidden=!active;$('form-error').textContent='';$('holiday-date').value=e.start;loadHolidayEditor();$('editor').showModal();}
 function edit(id){const e=state.events.find(e=>e.id===id);if(e)openEditor(e);}
 $('close').onclick=()=>$('editor').close();
 $('editor').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
@@ -92,6 +108,32 @@ $('editor').addEventListener('close',()=>void syncEvents());
 $('edit-branch').onchange=()=>{$('edit-note').value=BRANCHES[$('edit-branch').value].note;editorSectors();};
 $('edit-sector-choice').onchange=()=>{const value=$('edit-sector-choice').value;if(value)$('edit-sector').value=value;else $('edit-sector').focus();};
 $('edit-sector').oninput=()=>{const value=$('edit-sector').value;$('edit-sector-choice').value=BRANCHES[$('edit-branch').value].sectors.includes(value)?value:'';};
+function loadHolidayEditor(){
+ const day=$('holiday-date').value,row=state.holidays.find(row=>row.id===day);
+ holidayVersion=row?.version;$('holiday-mode').value=row?.mode??'auto';
+ $('holiday-name').value=holidayName(day,state.holidays);updateHolidayMode();
+ $('holiday-error').textContent=holidaysReady?'':'공휴일 저장 연결이 필요합니다. 공휴일 SQL 적용 또는 연결 상태를 확인해 주세요.';
+}
+function updateHolidayMode(){
+ const mode=$('holiday-mode').value,day=$('holiday-date').value;
+ if(mode==='auto')$('holiday-name').value=officialHoliday(day);
+ if(mode==='off')$('holiday-name').value='';
+ $('holiday-name').disabled=mode==='off';
+ $('holiday-hint').textContent=supportedHolidayYear(day.slice(0,4))?`자동 공휴일: ${officialHoliday(day)||'없음'} · 이름을 고치면 직접 입력으로 전환됩니다.`:'이 연도는 자동 공휴일 자료가 없습니다. 직접 입력해 주세요.';
+}
+$('holiday-date').onchange=loadHolidayEditor;
+$('holiday-mode').onchange=updateHolidayMode;
+$('holiday-name').oninput=()=>{$('holiday-mode').value='custom';};
+$('holiday-name').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('holiday-save').click();}};
+$('holiday-save').onclick=async()=>{
+ if(busy)return;
+ if(!holidaysReady){$('holiday-error').textContent='공휴일 저장 연결이 필요합니다. 공휴일 SQL 적용 후 팝업을 다시 열어 주세요.';return;}
+ const row={id:$('holiday-date').value,mode:$('holiday-mode').value,name:$('holiday-mode').value==='custom'?$('holiday-name').value.trim():''};
+ editorBusy(true);$('holiday-error').textContent='공휴일 저장 중…';
+ try{const saved=await writeHoliday(row,holidayVersion);state.holidays=[...state.holidays.filter(item=>item.id!==saved.id),saved];holidayVersion=saved.version;render();$('holiday-error').textContent='공휴일을 저장했습니다. 세팅 일정은 변경하지 않았습니다.';}
+ catch(error){$('holiday-error').textContent=error.message+' 입력 내용은 유지됩니다. 다른 사용자가 수정했을 수 있으니 창을 다시 열어 확인해 주세요.';}
+ finally{editorBusy(false);}
+};
 $('edit-form').onsubmit=async e=>{e.preventDefault();if(busy)return;const next={id:active??crypto.randomUUID()};for(const key of ['branch','sector','start','end','time','note'])next[key]=$(`edit-${key}`).value.trim();if(!validEvent(next)||!next.sector||!next.time||!next.note){$('form-error').textContent='내용과 날짜를 확인해 주세요. 종료일은 시작일 이후여야 합니다.';return;}
  editorBusy(true);$('form-error').textContent='공용 서버에 저장 중…';
  try{const saved=await writeEvent(next,activeVersion);state.events=[...state.events.filter(e=>e.id!==saved.id),saved];render();$('editor').close();status('공용 서버에 저장했습니다.');}
