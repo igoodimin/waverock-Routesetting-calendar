@@ -45,7 +45,7 @@ function fitText(text,x,y,width,font,color='#fff',align='left'){
 function drawCard(piece){
  const {event,row,start,end,lane}=piece;
  const rows=pieces.filter(p=>p.row===row);const lanes=Math.max(...rows.map(p=>p.lane))+1;
- const hasHoliday=days.slice(row*7,row*7+7).some(day=>holidayName(day,state.holidays));
+ const hasHoliday=rows.some(p=>days.slice(row*7+p.start,row*7+p.end+1).some(day=>holidayName(day,state.holidays)));
  const scale=Math.min(1,(hasHoliday?66:90)/(lanes*53+(lanes-1)*3));
  const h=53*scale, gap=3*scale;
  const x=GRID.x+start*GRID.cw,w=(end-start+1)*GRID.cw;
