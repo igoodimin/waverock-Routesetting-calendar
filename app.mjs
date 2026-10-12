@@ -47,9 +47,9 @@ function drawCard(piece){
  const rows=pieces.filter(p=>p.row===row);const lanes=Math.max(...rows.map(p=>p.lane))+1;
  const hasHoliday=rows.some(p=>days.slice(row*7+p.start,row*7+p.end+1).some(day=>holidayName(day,state.holidays)));
  const scale=Math.min(1,(hasHoliday?66:90)/(lanes*53+(lanes-1)*3));
- const h=53*scale, gap=3*scale;
+ const h=53*scale;
  const x=GRID.x+start*GRID.cw,w=(end-start+1)*GRID.cw;
- const y=GRID.y+row*GRID.rh+(lanes===1?67:GRID.rh-10-(h*lanes+gap*(lanes-1)))+lane*(h+gap);
+ const y=GRID.y+row*GRID.rh+(lanes===1?67:GRID.rh-h*lanes)+lane*h;
  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();ctx.fillStyle=BRANCHES[event.branch].color;ctx.fillRect(x,y,w,h);
  const narrow=end===start;
  const mark=marks[BRANCHES[event.branch].mark];
