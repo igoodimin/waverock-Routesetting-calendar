@@ -16,3 +16,11 @@ main{max-width:2100px;grid-template-columns:240px minmax(0,1fr);gap:28px;padding
 .month-navigation button{flex:1;font-size:12px}
 @media(max-width:1100px){main{grid-template-columns:190px minmax(0,1fr);gap:20px;padding:24px}.calendar-views{gap:12px}.month-heading{align-items:flex-start;flex-direction:column}.month-heading h2,.primary-month .month-heading h2{font-size:12px}}
 @media(max-width:760px){main{display:block;padding:20px}.workspace{margin-top:24px}.calendar-views{grid-template-columns:minmax(0,1fr);gap:28px}.month-panel{width:88%;justify-self:center}.primary-month{width:100%}.month-heading{flex-direction:row;align-items:center}.month-heading h2{font-size:14px}.primary-month .month-heading h2{font-size:16px}}
+
+/* Keep month swipes separate from date-range selection. */
+.interaction{touch-action:pan-y}
+.primary-month .cell{touch-action:none}
+.month-panel:not(.primary-month) .interaction{cursor:pointer}
+.month-heading [role="button"]{cursor:pointer}
+.month-heading [role="button"]:focus-visible,.interaction[role="button"]:focus-visible{outline:2px solid #70835c;outline-offset:4px}
+.interaction[aria-disabled="true"],.month-heading [aria-disabled="true"]{cursor:default}

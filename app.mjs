@@ -11,11 +11,11 @@ function status(message){$('status').textContent=message;}
 function save(){try{localStorage.setItem(VIEW_KEY,JSON.stringify({year:state.year,month:state.month,branch:state.branch}));}catch{}}
 let sharedReady=false,syncing=false,busy=false,activeVersion,holidayVersion,holidaysReady=false;
 async function syncEvents(){
- if(!configured||syncing||busy||$('editor').open)return;
+ if(!configured||syncing||busy||drag||views.some(view=>view.gesture)||$('editor').open)return;
  syncing=true;
  try{
   const [events,holidays]=await Promise.allSettled([readEvents(),readHolidays()]);
-  if(!busy&&!$('editor').open){
+  if(!busy&&!drag&&!views.some(view=>view.gesture)&&!$('editor').open){
    if(events.status==='fulfilled'){state.events=events.value;sharedReady=true;}
    holidaysReady=holidays.status==='fulfilled';
    if(holidaysReady)state.holidays=holidays.value;
@@ -80,7 +80,8 @@ function renderMonth(view){
   if(name)fitText(ctx,name,x,y+49,GRID.cw-24,'700 16px Pretendard','#ef3117','right');
  });ctx.textAlign='left';
  pieces.forEach(piece=>drawCard(view,piece));
- overlay.replaceChildren();
+ overlay.replaceChildren();view.gesture=null;
+ if(view.offset!==0)return;
  days.forEach((day,i)=>{const el=document.createElement('button');el.className='cell';el.dataset.index=i;el.setAttribute('aria-label',`${day} 세팅 일정 추가`);position(el,{x:GRID.x+i%7*GRID.cw,y:GRID.y+Math.floor(i/7)*GRID.rh,w:GRID.cw,h:GRID.rh});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();create(view,i,i);}});overlay.append(el);});
  for(const b of boxes){const e=state.events.find(e=>e.id===b.id),button=document.createElement('button');button.className='card-hit';button.setAttribute('aria-label',`${e.branch} ${e.sector} ${e.start}부터 ${e.end} 일정 수정`);position(button,b);button.onclick=()=>edit(e.id);overlay.append(button);}
 }
@@ -101,7 +102,18 @@ function render(){
    const canvas=document.createElement('canvas');canvas.width=2160;canvas.height=2700;canvas.setAttribute('aria-label',`${year}년 ${month}월 세팅 달력 미리보기`);
    const overlay=document.createElement('div');overlay.className='interaction';
    paper.append(canvas,overlay);panel.append(heading,paper);$('calendar-views').append(panel);
-   const view={year,month,canvas,ctx:canvas.getContext('2d'),overlay};
+   const view={year,month,offset,canvas,ctx:canvas.getContext('2d'),overlay};
+   if(offset!==0){
+    const allowed=year>=1900&&year<=2200;
+    overlay.setAttribute('role','button');overlay.tabIndex=allowed?0:-1;
+    overlay.setAttribute('aria-label',`${year}년 ${month}월을 중심 달로 보기`);
+    overlay.setAttribute('aria-disabled',String(!allowed));
+    title.setAttribute('role','button');title.tabIndex=allowed?0:-1;
+    title.setAttribute('aria-disabled',String(!allowed));title.title='클릭하면 중심 달로 이동';
+    title.onclick=()=>moveMonth(offset);
+    title.onkeydown=overlay.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();moveMonth(offset);}};
+    overlay.onclick=e=>{if(e.detail===0)moveMonth(offset);};
+   }
    download.onclick=()=>exportMonth(view,download);bindInteraction(view);return view;
   });
   $('calendar-views').dataset.months=key;
@@ -123,10 +135,32 @@ function indexAt(view,e){const r=view.overlay.getBoundingClientRect(),x=(e.clien
 function selectRange(){for(const view of views)view.overlay.querySelectorAll('.cell').forEach((el,i)=>el.classList.toggle('selected',drag?.view===view&&i>=Math.min(drag.start,drag.end)&&i<=Math.max(drag.start,drag.end)));}
 function bindInteraction(view){
  const {overlay}=view;
- overlay.onpointerdown=e=>{if(!ready||e.button!==0||!e.target.classList.contains('cell'))return;const i=indexAt(view,e);if(i===null)return;e.preventDefault();drag={view,start:i,end:i,pointer:e.pointerId};overlay.setPointerCapture(e.pointerId);selectRange();};
- overlay.onpointermove=e=>{if(drag?.view!==view||drag.pointer!==e.pointerId)return;const i=indexAt(view,e);if(i!==null){drag.end=i;selectRange();}};
- overlay.onpointerup=e=>{if(drag?.view!==view||drag.pointer!==e.pointerId)return;const {start,end}=drag;drag=null;create(view,start,end);};
- overlay.onpointercancel=overlay.onlostpointercapture=()=>{if(drag?.view===view){drag=null;selectRange();}};
+ overlay.onpointerdown=e=>{
+  if(!ready||e.button!==0||e.isPrimary===false||drag||view.gesture)return;
+  if(view.offset===0&&e.target.classList.contains('card-hit'))return;
+  if(view.offset===0&&e.target.classList.contains('cell')){
+   const i=indexAt(view,e);if(i===null)return;e.preventDefault();
+   drag={view,start:i,end:i,pointer:e.pointerId};overlay.setPointerCapture(e.pointerId);selectRange();return;
+  }
+  view.gesture={pointer:e.pointerId,x:e.clientX,y:e.clientY,maxX:0,maxY:0};
+  overlay.setPointerCapture(e.pointerId);
+ };
+ function track(e){const g=view.gesture;if(!g||g.pointer!==e.pointerId)return null;g.maxX=Math.max(g.maxX,Math.abs(e.clientX-g.x));g.maxY=Math.max(g.maxY,Math.abs(e.clientY-g.y));if(!g.axis&&Math.max(g.maxX,g.maxY)>=12)g.axis=g.maxX>g.maxY*1.5?'x':'y';return g;}
+ overlay.onpointermove=e=>{
+  if(drag?.view===view&&drag.pointer===e.pointerId){const i=indexAt(view,e);if(i!==null){drag.end=i;selectRange();}return;}
+  track(e);
+ };
+ overlay.onpointerup=e=>{
+  if(drag?.view===view&&drag.pointer===e.pointerId){const {start,end}=drag;drag=null;create(view,start,end);return;}
+  const g=track(e);if(!g)return;view.gesture=null;
+  const dx=e.clientX-g.x;
+  if(g.axis==='x'&&Math.abs(dx)>=55&&Math.abs(dx)>g.maxY*1.5)moveMonth(dx<0?1:-1);
+  else if(view.offset!==0&&g.maxX<=8&&g.maxY<=8)moveMonth(view.offset);
+ };
+ overlay.onpointercancel=overlay.onlostpointercapture=e=>{
+  if(view.gesture?.pointer===e.pointerId)view.gesture=null;
+  if(drag?.view===view&&drag.pointer===e.pointerId){drag=null;selectRange();}
+ };
 }
 function moveMonth(offset){const date=new Date(Date.UTC(state.year,state.month-1+offset,1));if(date.getUTCFullYear()<1900||date.getUTCFullYear()>2200)return;$('year').value=date.getUTCFullYear();$('month').value=date.getUTCMonth()+1;changeMonth();}
 $('previous-month').onclick=()=>moveMonth(-1);$('next-month').onclick=()=>moveMonth(1);
