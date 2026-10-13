@@ -1,26 +1,30 @@
+import {validArt,drawArt,prepareArt} from './event-art.mjs';
 import {officialHoliday,holidayName,supportedHolidayYear} from './holidays.mjs';
-import {configured,readEvents,writeEvent,removeEvent,readHolidays,writeHoliday} from './shared-store.mjs';
+import {configured,readEvents,writeEvent,removeEvent,readHolidays,writeHoliday,readArt,writeArt} from './shared-store.mjs';
 import {BRANCHES,calendarDays,segments,validEvent,withDpi} from './calendar.mjs';
 const $=id=>document.getElementById(id);
-const now=new Date();let state={year:now.getFullYear(),month:now.getMonth()+1,branch:'남천점',events:[],holidays:[]};
+const now=new Date();let state={year:now.getFullYear(),month:now.getMonth()+1,branch:'남천점',events:[],holidays:[],art:[]};
 const VIEW_KEY='waverock.calendar.view.v1';
 try {const saved=JSON.parse(localStorage.getItem(VIEW_KEY)||'null');
  if(saved&&Number.isInteger(saved.year)&&saved.year>=1900&&saved.year<=2200&&Number.isInteger(saved.month)&&saved.month>=1&&saved.month<=12){state.year=saved.year;state.month=saved.month;if(Object.hasOwn(BRANCHES,saved.branch))state.branch=saved.branch;}
 }catch{}
 function status(message){$('status').textContent=message;}
 function save(){try{localStorage.setItem(VIEW_KEY,JSON.stringify({year:state.year,month:state.month,branch:state.branch}));}catch{}}
-let sharedReady=false,syncing=false,busy=false,activeVersion,holidayVersion,holidaysReady=false;
+let sharedReady=false,syncing=false,busy=false,activeVersion,holidayVersion,holidaysReady=false,artReady=false,artVersion,artImage='';
+const artImages=new Map();
 async function syncEvents(){
  if(!configured||syncing||busy||drag||views.some(view=>view.gesture)||$('editor').open)return;
  syncing=true;
  try{
-  const [events,holidays]=await Promise.allSettled([readEvents(),readHolidays()]);
+  const [events,holidays,art]=await Promise.allSettled([readEvents(),readHolidays(),readArt()]);
+  if(art.status==='fulfilled'){try{await cacheArt(art.value);}catch{art.status='rejected';}}
   if(!busy&&!drag&&!views.some(view=>view.gesture)&&!$('editor').open){
    if(events.status==='fulfilled'){state.events=events.value;sharedReady=true;}
    holidaysReady=holidays.status==='fulfilled';
    if(holidaysReady)state.holidays=holidays.value;
+   artReady=art.status==='fulfilled';if(artReady)state.art=art.value;
    render();
-   status(events.status==='rejected'?events.reason.message:!holidaysReady?'일정 동기화 완료 · 공휴일 저장 연결이 필요합니다. 공휴일 SQL 적용 또는 연결 상태를 확인해 주세요.':'공용 일정·공휴일 동기화 완료 · 누구나 편집 가능');
+   status(events.status==='rejected'?events.reason.message:!holidaysReady?'일정 동기화 완료 · 공휴일 저장 연결이 필요합니다. 공휴일 SQL 적용 또는 연결 상태를 확인해 주세요.':!artReady?'일정 동기화 완료 · 이벤트 SQL 적용 또는 연결 상태를 확인해 주세요.':'공용 일정·공휴일·이벤트 동기화 완료 · 누구나 편집 가능');
   }
  }catch(error){status(error.message);}
  finally{syncing=false;}
@@ -37,6 +41,11 @@ const GRID={x:71,y:511,w:948,h:651};GRID.cw=GRID.w/7;GRID.rh=GRID.h/5;
 let active=null,drag=null,ready=false;
 const loadImage=src=>new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src;});
 let bg;const marks={};
+async function cacheArt(rows){
+ const sources=new Set(rows.filter(row=>row.enabled&&row.image).map(row=>row.image));
+ await Promise.all([...sources].map(async source=>{if(!artImages.has(source))artImages.set(source,await loadImage(source));}));
+ for(const source of artImages.keys())if(!sources.has(source))artImages.delete(source);
+}
 function fitText(ctx,text,x,y,width,font,color='#fff',align='left'){
  ctx.font=font;ctx.fillStyle=color;ctx.textAlign=align;
  ctx.save();ctx.translate(x,y);const measured=ctx.measureText(text).width;
@@ -73,13 +82,14 @@ function renderMonth(view){
  const {year,month,ctx,overlay}=view;
  const days=view.days=calendarDays(year,month),pieces=view.pieces=segments(state.events,days),boxes=view.boxes=[];
  ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,1080,1350);ctx.drawImage(bg,0,0,1080,1350);
+ days.forEach((day,i)=>{const row=state.art.find(row=>row.id===day);drawArt(ctx,row,artImages.get(row?.image),GRID.x+i%7*GRID.cw,GRID.y+Math.floor(i/7)*GRID.rh,GRID.cw,GRID.rh);});
+ pieces.forEach(piece=>drawCard(view,piece));
  days.forEach((day,i)=>{
   const d=new Date(`${day}T00:00:00Z`),name=holidayName(day,state.holidays);
   const x=GRID.x+(i%7+1)*GRID.cw-15,y=GRID.y+Math.floor(i/7)*GRID.rh;
   ctx.font='900 20px CalendarDate, Pretendard, sans-serif';ctx.fillStyle=name||i%7===0?'#ef3117':i%7===6?'#3f83c5':'#251d19';ctx.textAlign='right';ctx.fillText(`${d.getUTCMonth()+1}/${d.getUTCDate()}`,x,y+27);
   if(name)fitText(ctx,name,x,y+49,GRID.cw-24,'700 16px Pretendard','#ef3117','right');
  });ctx.textAlign='left';
- pieces.forEach(piece=>drawCard(view,piece));
  overlay.replaceChildren();view.gesture=null;
  if(view.offset!==0)return;
  days.forEach((day,i)=>{const el=document.createElement('button');el.className='cell';el.dataset.index=i;el.setAttribute('aria-label',`${day} 세팅 일정 추가`);position(el,{x:GRID.x+i%7*GRID.cw,y:GRID.y+Math.floor(i/7)*GRID.rh,w:GRID.cw,h:GRID.rh});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();create(view,i,i);}});overlay.append(el);});
@@ -167,7 +177,7 @@ $('previous-month').onclick=()=>moveMonth(-1);$('next-month').onclick=()=>moveMo
 function changeMonth(){const year=Number($('year').value),month=Number($('month').value);if(!Number.isInteger(year)||year<1900||year>2200){status('년도는 1900~2200 사이로 입력해 주세요.');return;}state.year=year;state.month=month;save();render();}
 $('year').onchange=changeMonth;$('month').onchange=changeMonth;$('branch').onchange=()=>{state.branch=$('branch').value;sectors();save();};
 function editorSectors(){const select=$('edit-sector-choice'),value=$('edit-sector').value;select.replaceChildren();for(const sector of BRANCHES[$('edit-branch').value].sectors)select.add(new Option(sector,sector));select.add(new Option('직접 입력',''));select.value=BRANCHES[$('edit-branch').value].sectors.includes(value)?value:'';}
-function openEditor(e){if(!sharedReady){status('공용 서버 연결이 필요합니다. 연결 후 다시 시도해 주세요.');return;}activeVersion=e.version;active=e.id??null;for(const key of ['branch','sector','start','end','time','note'])$(`edit-${key}`).value=e[key];editorSectors();$('editor-title').textContent=active?'세팅 일정 수정':'세팅 일정 추가';$('editor-save').textContent=active?'수정 저장':'일정 추가';$('delete').hidden=!active;$('form-error').textContent='';$('holiday-date').value=e.start;loadHolidayEditor();$('editor').showModal();}
+function openEditor(e){if(!sharedReady){status('공용 서버 연결이 필요합니다. 연결 후 다시 시도해 주세요.');return;}activeVersion=e.version;active=e.id??null;for(const key of ['branch','sector','start','end','time','note'])$(`edit-${key}`).value=e[key];editorSectors();$('editor-title').textContent=active?'세팅 일정 수정':'세팅 일정 추가';$('editor-save').textContent=active?'수정 저장':'일정 추가';$('delete').hidden=!active;$('form-error').textContent='';$('holiday-date').value=e.start;loadHolidayEditor();$('art-date').value=e.start;loadArtEditor();$('editor').showModal();}
 function edit(id){const e=state.events.find(e=>e.id===id);if(e)openEditor(e);}
 $('close').onclick=()=>$('editor').close();
 $('editor').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
@@ -175,6 +185,41 @@ $('editor').addEventListener('close',()=>void syncEvents());
 $('edit-branch').onchange=()=>{$('edit-note').value=BRANCHES[$('edit-branch').value].note;editorSectors();};
 $('edit-sector-choice').onchange=()=>{const value=$('edit-sector-choice').value;if(value)$('edit-sector').value=value;else $('edit-sector').focus();};
 $('edit-sector').oninput=()=>{const value=$('edit-sector').value;$('edit-sector-choice').value=BRANCHES[$('edit-branch').value].sectors.includes(value)?value:'';};
+function previewArt(){
+ $('art-preview').hidden=!artImage;if(artImage)$('art-preview').src=artImage;else $('art-preview').removeAttribute('src');
+ $('art-remove-image').hidden=!artImage;
+}
+function loadArtEditor(){
+ const row=state.art.find(row=>row.id===$('art-date').value);artVersion=row?.version;
+ $('art-name').value=row?.enabled?row.name:'';artImage=row?.enabled?row.image:'';$('art-file').value='';
+ $('art-delete').hidden=!row?.enabled;previewArt();
+ $('art-error').textContent=artReady?'':'이벤트 저장 연결이 필요합니다. Supabase에 이벤트 SQL을 적용한 뒤 다시 열어 주세요.';
+}
+$('art-date').onchange=loadArtEditor;
+$('art-name').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('art-save').click();}};
+$('art-file').onchange=async()=>{
+ const file=$('art-file').files[0];if(!file||busy)return;editorBusy(true);$('art-error').textContent='이미지 준비 중…';
+ try{artImage=await prepareArt(file,loadImage);previewArt();$('art-error').textContent='이미지를 준비했습니다. 이벤트 저장을 눌러 적용하세요.';}
+ catch(error){$('art-error').textContent=error.message;}
+ finally{$('art-file').value='';editorBusy(false);}
+};
+$('art-remove-image').onclick=()=>{artImage='';previewArt();};
+async function saveArt(enabled){
+ if(busy)return;
+ if(!artReady){$('art-error').textContent='이벤트 SQL 적용 후 팝업을 다시 열어 주세요.';return;}
+ const row={id:$('art-date').value,enabled,name:enabled?$('art-name').value.trim():'',image:enabled?artImage:''};
+ if(!validArt(row)){$('art-error').textContent='올바른 날짜와 이벤트명을 입력해 주세요.';return;}
+ editorBusy(true);$('art-error').textContent='이벤트 저장 중…';
+ try{
+  if(row.image&&!artImages.has(row.image))artImages.set(row.image,await loadImage(row.image));
+  const saved=await writeArt(row,artVersion);state.art=[...state.art.filter(item=>item.id!==saved.id),saved];artVersion=saved.version;
+  if(!enabled){artImage='';$('art-name').value='';previewArt();}
+  $('art-delete').hidden=!enabled;render();$('art-error').textContent=enabled?'이벤트를 저장했습니다.':'이벤트를 삭제했습니다.';
+ }catch(error){$('art-error').textContent=error.message+' 입력 내용은 유지됩니다.';}
+ finally{editorBusy(false);}
+}
+$('art-save').onclick=()=>saveArt(true);
+$('art-delete').onclick=()=>saveArt(false);
 function loadHolidayEditor(){
  const day=$('holiday-date').value,row=state.holidays.find(row=>row.id===day);
  holidayVersion=row?.version;$('holiday-mode').value=row?.mode??'auto';
@@ -212,7 +257,7 @@ $('delete').onclick=async()=>{if(!active||busy)return;editorBusy(true);
  catch(error){$('form-error').textContent=error.message;}
  finally{editorBusy(false);}
 };
-async function exportMonth(view,button){const {canvas,year,month}=view;button.disabled=true;status('고화질 PNG를 만드는 중…');try{await document.fonts.ready;const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('empty');const bytes=withDpi(new Uint8Array(await blob.arrayBuffer()));const url=URL.createObjectURL(new Blob([bytes],{type:'image/png'}));const a=document.createElement('a');a.href=url;a.download=`WAVEROCK-${year}-${String(month).padStart(2,'0')}-150dpi.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);status('2160 × 2700px · 150dpi PNG를 다운로드했습니다.');}catch{status('이미지 추출에 실패했습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.');}finally{button.disabled=false;}};
+async function exportMonth(view,button){const {canvas,year,month}=view;button.disabled=true;status('고화질 PNG를 만드는 중…');try{await document.fonts.ready;renderMonth(view);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('empty');const bytes=withDpi(new Uint8Array(await blob.arrayBuffer()));const url=URL.createObjectURL(new Blob([bytes],{type:'image/png'}));const a=document.createElement('a');a.href=url;a.download=`WAVEROCK-${year}-${String(month).padStart(2,'0')}-150dpi.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);status('2160 × 2700px · 150dpi PNG를 다운로드했습니다.');}catch{status('이미지 추출에 실패했습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.');}finally{button.disabled=false;}};
 $('export').onclick=()=>exportMonth(views[1],$('export'));
 try{[bg]=await Promise.all([loadImage('assets/background.png'),...Object.values(BRANCHES).map(async({mark})=>{const [small,large]=await Promise.all(['small','large'].map(size=>loadImage(`assets/mark-${mark}-${size}.svg`)));marks[mark]={small,large};}),document.fonts.load('700 22px Pretendard'),document.fonts.load('500 15px Pretendard'),document.fonts.load('900 20px CalendarDate, Pretendard')]);ready=true;render();$('export').disabled=false;status(configured?'공용 일정을 불러오는 중…':'공용 저장 서버가 아직 연결되지 않았습니다.');}catch{status('디자인 소스나 폰트를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로고침해 주세요.');}
 
