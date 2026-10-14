@@ -83,6 +83,10 @@ function renderMonth(view){
  const days=view.days=calendarDays(year,month),pieces=view.pieces=segments(state.events,days),boxes=view.boxes=[];
  ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,1080,1350);ctx.drawImage(bg,0,0,1080,1350);
  days.forEach((day,i)=>{const row=state.art.find(row=>row.id===day);drawArt(ctx,row,artImages.get(row?.image),GRID.x+i%7*GRID.cw,GRID.y+Math.floor(i/7)*GRID.rh,GRID.cw,GRID.rh);});
+ const monthPrefix=`${year}-${String(month).padStart(2,'0')}-`;
+ ctx.save();ctx.fillStyle='rgba(0,0,0,0.08)';
+ days.forEach((day,i)=>{if(!day.startsWith(monthPrefix))ctx.fillRect(GRID.x+i%7*GRID.cw,GRID.y+Math.floor(i/7)*GRID.rh,GRID.cw,GRID.rh);});
+ ctx.restore();
  pieces.forEach(piece=>drawCard(view,piece));
  days.forEach((day,i)=>{
   const d=new Date(`${day}T00:00:00Z`),name=holidayName(day,state.holidays);
