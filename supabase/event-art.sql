@@ -5,6 +5,7 @@ begin;
 create table public.calendar_art (
  id date primary key check (id between date '1900-01-01' and date '2201-12-31'),
  enabled boolean not null default true,
+ font_size integer not null default 20 check (font_size between 12 and 36),
  name text not null default '' check (char_length(name) <= 40),
  image text not null default '' check (char_length(image) <= 700000 and (image = '' or image ~ '^data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}$')),
  version integer not null default 1 check (version > 0),

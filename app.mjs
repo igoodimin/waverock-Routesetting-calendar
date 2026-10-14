@@ -195,12 +195,13 @@ function previewArt(){
 }
 function loadArtEditor(){
  const row=state.art.find(row=>row.id===$('art-date').value);artVersion=row?.version;
+ $('art-font-size').value=row?.font_size??20;
  $('art-name').value=row?.enabled?row.name:'';artImage=row?.enabled?row.image:'';$('art-file').value='';
  $('art-delete').hidden=!row?.enabled;previewArt();
  $('art-error').textContent=artReady?'':'이벤트 저장 연결이 필요합니다. Supabase에 이벤트 SQL을 적용한 뒤 다시 열어 주세요.';
 }
 $('art-date').onchange=loadArtEditor;
-$('art-name').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('art-save').click();}};
+$('art-name').onkeydown=e=>{if(e.key==='Enter')e.stopPropagation();};
 $('art-file').onchange=async()=>{
  const file=$('art-file').files[0];if(!file||busy)return;editorBusy(true);$('art-error').textContent='이미지 준비 중…';
  try{artImage=await prepareArt(file,loadImage);previewArt();$('art-error').textContent='이미지를 준비했습니다. 이벤트 저장을 눌러 적용하세요.';}
@@ -211,8 +212,8 @@ $('art-remove-image').onclick=()=>{artImage='';previewArt();};
 async function saveArt(enabled){
  if(busy)return;
  if(!artReady){$('art-error').textContent='이벤트 SQL 적용 후 팝업을 다시 열어 주세요.';return;}
- const row={id:$('art-date').value,enabled,name:enabled?$('art-name').value.trim():'',image:enabled?artImage:''};
- if(!validArt(row)){$('art-error').textContent='올바른 날짜와 이벤트명을 입력해 주세요.';return;}
+ const row={id:$('art-date').value,enabled,font_size:Number($('art-font-size').value),name:enabled?$('art-name').value.replace(/\r\n?/g,'\n').trim():'',image:enabled?artImage:''};
+ if(!validArt(row)){$('art-error').textContent='올바른 날짜, 이벤트명(최대 3줄·40자), 글씨 크기(12~36의 정수)를 입력해 주세요.';return;}
  editorBusy(true);$('art-error').textContent='이벤트 저장 중…';
  try{
   if(row.image&&!artImages.has(row.image))artImages.set(row.image,await loadImage(row.image));

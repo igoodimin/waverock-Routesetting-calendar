@@ -38,9 +38,20 @@ test('shared event creation, reload, update and version conflict',async()=>{
 test('calendar renders background, event art, setting cards, then dates',async()=>{
  const {readFile}=await import('node:fs/promises');const source=await readFile(new URL('../app.mjs',import.meta.url),'utf8');
  const body=source.slice(source.indexOf('function renderMonth(view){'),source.indexOf('\nfunction render(){'));
- const calls=[];const ctx={setTransform(){},clearRect(){},drawImage(){calls.push('background');},fillText(){calls.push('date');}};
+ const calls=[];const ctx={save(){},restore(){},setTransform(){},clearRect(){},drawImage(){calls.push('background');},fillText(){calls.push('date');}};
  const render=new Function('calendarDays','segments','state','bg','drawArt','artImages','GRID','drawCard','holidayName','fitText',body+';return renderMonth;')(
  ()=>['2026-10-13'],()=>[{}],{events:[],art:[row],holidays:[]},{},()=>calls.push('art'),new Map(),{x:0,y:0,cw:100,rh:80},()=>calls.push('card'),()=>'',()=>{});
  render({year:2026,month:10,ctx,offset:1,overlay:{replaceChildren(){}}});
  assert.deepEqual(calls,['background','art','card','date']);
+});
+
+test('event text supports three centered lines and saved font sizes',async()=>{
+ assert.ok(validArt({...row,name:'첫 줄\n둘째 줄\n셋째 줄',font_size:36}));
+ for(const patch of [{name:'1\n2\n3\n4'},{font_size:11},{font_size:37},{font_size:20.5},{font_size:null}])assert.ok(!validArt({...row,...patch}));
+ const calls=[];const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(){},fillText(text,x,y){calls.push({text,x,y,font:this.font});}};
+ drawArt(ctx,{...row,name:'첫 줄\n둘째 줄\n셋째 줄',font_size:30},null,0,0,160,152);
+ assert.deepEqual(calls,[{text:'첫 줄',x:80,y:40,font:'700 30px Pretendard'},{text:'둘째 줄',x:80,y:76,font:'700 30px Pretendard'},{text:'셋째 줄',x:80,y:112,font:'700 30px Pretendard'}]);
+ const original=globalThis.fetch;const saved={...row,name:'첫 줄\n둘째 줄\n셋째 줄',font_size:30,version:1};let body;
+ globalThis.fetch=async(url,options)=>{body=JSON.parse(options.body);return {ok:true,json:async()=>[saved]};};
+ try{assert.deepEqual(await writeArt(saved),saved);assert.equal(body.font_size,30);assert.equal(body.name,saved.name);}finally{globalThis.fetch=original;}
 });
