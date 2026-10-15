@@ -60,6 +60,23 @@ function fitText(ctx,text,x,y,width,font,color='#fff',align='left'){
  ctx.save();ctx.translate(x,y);const measured=ctx.measureText(text).width;
  if(measured>width)ctx.scale(width/measured,1);ctx.fillText(text,0,0);ctx.restore();ctx.textAlign='left';
 }
+function drawEnglishHoliday(ctx,name,x,y,width){
+ ctx.font='700 14px Pretendard';ctx.fillStyle='#ef3117';ctx.textAlign='right';
+ const words=name.trim().split(/\s+/);let lines=[words.join(' ')];
+ if(ctx.measureText(lines[0]).width>width&&words.length>1){
+  let bestWidth=Infinity;
+  for(let i=1;i<words.length;i++){
+   const candidate=[words.slice(0,i).join(' '),words.slice(i).join(' ')];
+   const measured=Math.max(...candidate.map(line=>ctx.measureText(line).width));
+   if(measured<bestWidth){lines=candidate;bestWidth=measured;}
+  }
+ }
+ const measured=Math.max(...lines.map(line=>ctx.measureText(line).width));
+ const size=Math.min(14,14*width/Math.max(1,measured));
+ ctx.font=`700 ${size}px Pretendard`;
+ lines.forEach((line,i)=>ctx.fillText(line,x,y+(lines.length===1?49:44+i*16)));
+ ctx.textAlign='left';
+}
 function drawCard(view,piece){
  const {ctx,days,pieces,boxes}=view;
  const {event,row,start,end,lane}=piece;
@@ -114,7 +131,10 @@ function renderMonth(view){
   const d=new Date(`${day}T00:00:00Z`),name=outputHoliday(day);
   const x=GRID.x+(i%7+1)*GRID.cw-15,y=GRID.y+Math.floor(i/7)*GRID.rh;
   ctx.font='900 20px CalendarDate, Pretendard, sans-serif';ctx.fillStyle=name||i%7===0?'#ef3117':i%7===6?'#3f83c5':'#251d19';ctx.textAlign='right';ctx.fillText(`${d.getUTCMonth()+1}/${d.getUTCDate()}`,x,y+27);
-  if(name)fitText(ctx,name,x,y+49,GRID.cw-24,'700 16px Pretendard','#ef3117','right');
+  if(name){
+   if(isEnglish)drawEnglishHoliday(ctx,name,x,y,GRID.cw-24);
+   else fitText(ctx,name,x,y+49,GRID.cw-24,'700 16px Pretendard','#ef3117','right');
+  }
  });ctx.textAlign='left';
  if(isEnglish)drawEnglishFooter(ctx,marks);
  overlay.replaceChildren();view.gesture=null;
