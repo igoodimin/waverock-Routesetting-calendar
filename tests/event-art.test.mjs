@@ -39,8 +39,8 @@ test('calendar renders background, event art, setting cards, then dates',async()
  const {readFile}=await import('node:fs/promises');const source=await readFile(new URL('../app.mjs',import.meta.url),'utf8');
  const body=source.slice(source.indexOf('function renderMonth(view){'),source.indexOf('\nfunction render(){'));
  const calls=[];const ctx={save(){},restore(){},setTransform(){},clearRect(){},drawImage(){calls.push('background');},fillText(){calls.push('date');}};
- const render=new Function('calendarDays','segments','state','bg','drawArt','artImages','GRID','drawCard','holidayName','fitText',body+';return renderMonth;')(
- ()=>['2026-10-13'],()=>[{}],{events:[],art:[row],holidays:[]},{},()=>calls.push('art'),new Map(),{x:0,y:0,cw:100,rh:80},()=>calls.push('card'),()=>'',()=>{});
+ const render=new Function('calendarDays','segments','state','bg','drawArt','artImages','GRID','drawCard','holidayName','fitText','isEnglish','outputHoliday',body+';return renderMonth;')(
+ ()=>['2026-10-13'],()=>[{}],{events:[],art:[row],holidays:[]},{},()=>calls.push('art'),new Map(),{x:0,y:0,cw:100,rh:80},()=>calls.push('card'),()=>'',()=>{},false,()=> '');
  render({year:2026,month:10,ctx,offset:1,overlay:{replaceChildren(){}}});
  assert.deepEqual(calls,['background','art','card','date']);
 });

@@ -1,3 +1,4 @@
+import {validEnglish} from './translations.mjs';
 export const BRANCHES = {
   '남천점': { color:'#2b2b2b', mark:'nam', note:'오픈 세팅', sectors:['레드','화이트','브라운1','브라운2','브라운1&2'] },
   '서면점': { color:'#287338', mark:'seo', note:'오픈 세팅', sectors:['미드나잇','캐슬','락랜드','해피'] },
@@ -32,7 +33,7 @@ export function segments(events, days) {
   return result;
 }
 export function validEvent(e) {
-  return e && typeof e.id==='string' && Object.hasOwn(BRANCHES,e.branch) &&
+  return e && validEnglish(e.sector_en) && validEnglish(e.note_en) && typeof e.id==='string' && Object.hasOwn(BRANCHES,e.branch) &&
     ['sector','time','note','start','end'].every(k=>typeof e[k]==='string') &&
     [e.start,e.end].every(s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(date(s))&&iso(date(s))===s) && e.start<=e.end;
 }
