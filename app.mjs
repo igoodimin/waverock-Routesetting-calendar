@@ -103,10 +103,11 @@ function drawCard(view,piece){
  const {event,row,start,end,lane}=piece;
  const rows=pieces.filter(p=>p.row===row);const lanes=Math.max(...rows.map(p=>p.lane))+1;
  const hasHoliday=rows.some(p=>days.slice(row*7+p.start,row*7+p.end+1).some(day=>holidayName(day,state.holidays)));
- const scale=Math.min(1,(hasHoliday?66:90)/(lanes*53+(lanes-1)*3));
+ const header=view.artHeaders?.get(row);
+ const scale=Math.min(1,(header===undefined?(hasHoliday?66:90):GRID.rh-header)/(lanes*53+(lanes-1)*3));
  const h=53*scale;
  const x=GRID.x+start*GRID.cw,w=(end-start+1)*GRID.cw;
- const y=GRID.y+row*GRID.rh+(lanes===1?67:GRID.rh-h*lanes)+lane*h;
+ const y=GRID.y+row*GRID.rh+(lanes===1?Math.max(67,header??0):GRID.rh-h*lanes)+lane*h;
  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();ctx.fillStyle=BRANCHES[event.branch].color;ctx.fillRect(x,y,w,h);
  const narrow=end===start,showLogo=event.show_logo!==false;
  const mark=marks[BRANCHES[event.branch].mark];
@@ -142,7 +143,17 @@ function renderMonth(view){
  const {year,month,ctx,overlay}=view;
  const days=view.days=calendarDays(year,month),pieces=view.pieces=segments(state.events,days),boxes=view.boxes=[];
  ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,1080,1350);ctx.drawImage(bg,0,0,1080,1350);
- days.forEach((day,i)=>{const row=state.art.find(row=>row.id===day);drawArt(ctx,isEnglish&&row?{...row,name:english(row,'name')}:row,artImages.get(row?.image),GRID.x+i%7*GRID.cw,GRID.y+Math.floor(i/7)*GRID.rh,GRID.cw,GRID.rh);});
+ const artLayouts=new Map();view.artHeaders=new Map();
+ days.forEach((day,i)=>{
+  const row=state.art.find(row=>row.id===day),week=Math.floor(i/7);
+  if(!row?.enabled||row.image||!pieces.some(p=>p.row===week&&p.start<=i%7&&p.end>=i%7))return;
+  const top=outputHoliday(day)?(isEnglish?66:55):33;
+  const name=isEnglish?english(row,'name'):row.name;
+  const bottom=Math.min(94,top+name.split(/\r\n?|\n/).length*(row.font_size??20)*1.2);
+  artLayouts.set(day,{textTop:top,textBottom:bottom});
+  view.artHeaders.set(week,Math.max(view.artHeaders.get(week)??67,bottom+5));
+ });
+ days.forEach((day,i)=>{const row=state.art.find(row=>row.id===day);drawArt(ctx,isEnglish&&row?{...row,name:english(row,'name')}:row,artImages.get(row?.image),GRID.x+i%7*GRID.cw,GRID.y+Math.floor(i/7)*GRID.rh,GRID.cw,GRID.rh,artLayouts.get(day));});
  const monthPrefix=`${year}-${String(month).padStart(2,'0')}-`;
  ctx.save();ctx.fillStyle='rgba(0,0,0,0.08)';
  days.forEach((day,i)=>{if(!day.startsWith(monthPrefix))ctx.fillRect(GRID.x+i%7*GRID.cw,GRID.y+Math.floor(i/7)*GRID.rh,GRID.cw,GRID.rh);});
@@ -266,6 +277,7 @@ function previewArt(){
 function loadArtEditor(){
  const row=state.art.find(row=>row.id===$('art-date').value);artVersion=row?.version;
  $('art-font-size').value=row?.font_size??20;
+ $('art-background-color').value=row?.background_color??'#e4c64f';
  $('art-name-en').value=row?.enabled?row.name_en||'':'';
  $('art-name').value=row?.enabled?row.name:'';artImage=row?.enabled?row.image:'';$('art-file').value='';
  $('art-delete').hidden=!row?.enabled;previewArt();
@@ -283,7 +295,7 @@ $('art-remove-image').onclick=()=>{artImage='';previewArt();};
 async function saveArt(enabled){
  if(busy)return;
  if(!artReady){$('art-error').textContent='이벤트 SQL 적용 후 팝업을 다시 열어 주세요.';return;}
- const row={id:$('art-date').value,enabled,name_en:enabled?$('art-name-en').value.replace(/\r\n?/g,'\n').trim():'',font_size:Number($('art-font-size').value),name:enabled?$('art-name').value.replace(/\r\n?/g,'\n').trim():'',image:enabled?artImage:''};
+ const row={id:$('art-date').value,enabled,background_color:$('art-background-color').value,name_en:enabled?$('art-name-en').value.replace(/\r\n?/g,'\n').trim():'',font_size:Number($('art-font-size').value),name:enabled?$('art-name').value.replace(/\r\n?/g,'\n').trim():'',image:enabled?artImage:''};
  if(!validArt(row)){$('art-error').textContent='올바른 날짜, 이벤트명(최대 3줄·40자), 글씨 크기(12~36의 정수)를 입력해 주세요.';return;}
  editorBusy(true);$('art-error').textContent='이벤트 저장 중…';
  try{

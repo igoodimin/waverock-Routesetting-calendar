@@ -55,3 +55,37 @@ test('event text supports three centered lines and saved font sizes',async()=>{
  globalThis.fetch=async(url,options)=>{body=JSON.parse(options.body);return {ok:true,json:async()=>[saved]};};
  try{assert.deepEqual(await writeArt(saved),saved);assert.equal(body.font_size,30);assert.equal(body.name,saved.name);}finally{globalThis.fetch=original;}
 });
+
+test('background color validates and survives shared storage',async()=>{
+ for(const color of ['#123abc','#ABCDEF'])assert.ok(validArt({...row,background_color:color}));
+ for(const color of ['',null,'red','#123','123abc'])assert.ok(!validArt({...row,background_color:color}));
+ const original=globalThis.fetch;let saved;
+ globalThis.fetch=async(url,options)=>({ok:true,json:async()=>{
+  if(options.method==='GET')return url.includes('offset=0')&&saved?[saved]:[];
+  saved=JSON.parse(options.body);return [saved];
+ }});
+ try{await writeArt({...row,background_color:'#123abc'});assert.equal((await readArt())[0].background_color,'#123abc');}
+ finally{globalThis.fetch=original;}
+});
+test('scheduled event lines fit below holidays, align with date, and keep selected background',()=>{
+ const calls=[];let fill;
+ const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(){fill=this.fillStyle;},measureText(t){return {width:t.length*20};},fillText(text,x,y){calls.push({x,y,align:this.textAlign,size:parseFloat(this.font.slice(4))});}};
+ for(const top of [33,55,66]){
+  calls.length=0;
+  drawArt(ctx,{...row,name:'첫째\n둘째\n셋째',font_size:36,background_color:'#123abc'},null,0,0,135,130,{textTop:top,textBottom:94});
+  assert.equal(fill,'#123abc');assert.equal(calls.length,3);
+  for(const c of calls){assert.equal(c.align,'right');assert.equal(c.x,120);assert.ok(c.y-c.size/2>=top);assert.ok(c.y+c.size/2<=95);}
+ }
+});
+test('setting cards stay below reserved event text in single and stacked rows',async()=>{
+ const {readFile}=await import('node:fs/promises');const source=await readFile(new URL('../app.mjs',import.meta.url),'utf8');
+ const body=source.slice(source.indexOf('function drawCard('),source.indexOf('\nfunction position('));
+ const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(){}};
+ const draw=new Function('GRID','state','holidayName','BRANCHES','marks','isEnglish','fitText',body+';return drawCard;')({x:0,y:0,cw:135,rh:130},{holidays:[]},()=>'',{test:{color:'#fff',mark:'test'}},{test:{}},false,()=>{});
+ for(const lanes of [1,2,3]){
+  const pieces=Array.from({length:lanes},(_,lane)=>({event:{id:String(lane),branch:'test',show_logo:false},row:0,start:0,end:0,lane}));
+  const view={ctx,days:['2026-10-13'],pieces,boxes:[],artHeaders:new Map([[0,99]])};
+  pieces.forEach(p=>draw(view,p));
+  for(const b of view.boxes){assert.ok(b.y>=99);assert.ok(b.y+b.h<=130.00001);}
+ }
+});

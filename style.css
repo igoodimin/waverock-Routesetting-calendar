@@ -26,6 +26,10 @@ main{max-width:2100px;grid-template-columns:240px minmax(0,1fr);gap:28px;padding
 .interaction[aria-disabled="true"],.month-heading [aria-disabled="true"]{cursor:default}
 
 .art-editor{margin-top:24px}.art-editor h2{font-size:16px}#art-error{font-size:12px;color:#b14334;line-height:1.6}#art-preview{display:block;width:100%;max-width:316px;aspect-ratio:632/608;object-fit:cover;margin:12px auto}#art-preview[hidden]{display:none}#art-remove-image{margin-top:10px}
+#art-background-color{width:52px;height:44px;padding:4px;cursor:pointer}
+#art-background-color::-webkit-color-swatch-wrapper{padding:0}
+#art-background-color::-webkit-color-swatch{border:0;border-radius:4px}
+#art-background-color::-moz-color-swatch{border:0;border-radius:4px}
 
 #art-name{display:block;width:100%;border:1px solid #d4d8cb;background:#fff;border-radius:7px;padding:12px;font:500 14px Pretendard;color:#283020;margin-top:7px;resize:vertical;line-height:1.4}#art-name:focus{outline:2px solid #70835c;outline-offset:2px}
 
