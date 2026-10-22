@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+const source=await readFile(new URL('../app.mjs',import.meta.url),'utf8');
+test('refresh is throttled on return, manual refresh bypasses throttle, editing defers it',()=>{
+ let now=120000,calls=0;
+ const editor={open:false};
+ const context=vm.createContext({Date:{now:()=>now},document:{hidden:false},configured:true,syncing:false,busy:false,drag:null,views:[],$:()=>editor,syncEvents:()=>{calls++;vm.runInContext('pendingRefresh=false;lastRefresh=Date.now()',context);}});
+ vm.runInContext(source.slice(source.indexOf('let lastRefresh='),source.indexOf('async function syncEvents()')),context);
+ vm.runInContext('requestRefresh()',context);assert.equal(calls,1);
+ now+=1000;vm.runInContext('requestRefresh();requestRefresh()',context);assert.equal(calls,1);
+ vm.runInContext('requestRefresh(true)',context);assert.equal(calls,2);
+ editor.open=true;now+=61000;vm.runInContext('requestRefresh()',context);assert.equal(calls,2);
+ editor.open=false;vm.runInContext('flushRefresh()',context);assert.equal(calls,3);
+ vm.runInContext('flushRefresh()',context);assert.equal(calls,3);
+ context.syncing=true;vm.runInContext('requestRefresh(true)',context);assert.equal(calls,3);
+ assert.doesNotMatch(source,/setInterval\(/);
+});
+test('month navigation fetches only missing months, forced refresh updates all, saves survive in-flight reads',async()=>{
+ let calls=[],resolve;
+ const states=new Map(),connections=new Map();
+ const context=vm.createContext({views:[{year:2026,month:10},{year:2026,month:11}],monthLoading:false,busy:false,monthStates:states,monthConnections:connections,monthId:(y,m)=>`${y}-${m}`,renderMonthState(){},readMonthState:async id=>{calls.push(id);return null;}});
+ vm.runInContext(source.slice(source.indexOf('async function syncMonthState('),source.indexOf('function renderMonthState()')),context);
+ await vm.runInContext('syncMonthState()',context);assert.equal(calls.length,2);
+ await vm.runInContext('syncMonthState()',context);assert.equal(calls.length,2);
+ context.views=[{year:2026,month:11},{year:2026,month:12}];
+ await vm.runInContext('syncMonthState()',context);assert.deepEqual(calls,['2026-10','2026-11','2026-12']);
+ await vm.runInContext('syncMonthState(true)',context);assert.equal(calls.length,5);
+ context.views=[{year:2026,month:12}];context.readMonthState=()=>new Promise(r=>{resolve=r;});
+ const pending=vm.runInContext('syncMonthState(true)',context);
+ const saved={is_draft:true,version:2};states.set('2026-12',saved);resolve({is_draft:false,version:1});await pending;
+ assert.equal(states.get('2026-12'),saved);
+});
+test('background month reads preserve switch appearance and only saving month is locked',()=>{
+ const nodes=()=>({stateSwitch:{setAttribute(){}},stateControl:{classList:{toggle(){}}},stateMessage:{}});
+ const views=[{year:2026,month:10,...nodes()},{year:2026,month:11,...nodes()}];
+ const context=vm.createContext({views,monthId:(y,m)=>`${y}-${m}`,monthConnections:new Map([['2026-10',true],['2026-11',true]]),monthStates:new Map(),state:{events:[]},isMonthDraft:()=>false,sharedReady:true,savingMonth:null,monthLoading:true});
+ vm.runInContext(source.slice(source.indexOf('function renderMonthState()'),source.indexOf('async function toggleMonthState(')),context);
+ vm.runInContext('renderMonthState()',context);assert.ok(views.every(v=>!v.stateSwitch.disabled));
+ context.savingMonth='2026-10';vm.runInContext('renderMonthState()',context);
+ assert.equal(views[0].stateSwitch.disabled,true);assert.equal(views[1].stateSwitch.disabled,false);
+});
