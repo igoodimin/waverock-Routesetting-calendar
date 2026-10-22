@@ -33,7 +33,7 @@ export function segments(events, days) {
   return result;
 }
 export function validEvent(e) {
-  return e && validEnglish(e.sector_en) && validEnglish(e.note_en) && typeof e.id==='string' && Object.hasOwn(BRANCHES,e.branch) &&
+  return e && (e.show_logo===undefined||typeof e.show_logo==='boolean') && validEnglish(e.sector_en) && validEnglish(e.note_en) && typeof e.id==='string' && Object.hasOwn(BRANCHES,e.branch) &&
     ['sector','time','note','start','end'].every(k=>typeof e[k]==='string') &&
     [e.start,e.end].every(s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(date(s))&&iso(date(s))===s) && e.start<=e.end;
 }

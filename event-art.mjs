@@ -15,8 +15,11 @@ export function drawArt(ctx,row,image,x,y,w,h){
  if(row.image&&image)ctx.drawImage(image,...coverRect(image.width,image.height,w,h),x,y,w,h);
  else if(!row.image){
   ctx.fillStyle='#e4c64f';ctx.fillRect(x,y,w,h);ctx.fillStyle='#251d19';ctx.font=`700 ${row.font_size??20}px Pretendard`;ctx.textAlign='center';ctx.textBaseline='middle';
-  const lines=row.name.split(/\r\n?|\n/),lineHeight=(row.font_size??20)*1.2;
-  lines.forEach((line,i)=>ctx.fillText(line,x+w/2,y+h/2+(i-(lines.length-1)/2)*lineHeight,w-16));
+  const lines=row.name.split(/\r\n?|\n/),base=row.font_size??20;
+  const measured=Math.max(1,...lines.map(line=>ctx.measureText(line).width));
+  const size=base*Math.min(1,(w-16)/measured,(h-16)/(lines.length*base*1.2)),lineHeight=size*1.2;
+  ctx.font=`700 ${size}px Pretendard`;
+  lines.forEach((line,i)=>ctx.fillText(line,x+w/2,y+h/2+(i-(lines.length-1)/2)*lineHeight));
  }
  ctx.restore();
 }

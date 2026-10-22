@@ -1,7 +1,7 @@
-import {BRANCH_EN,SECTOR_EN,NOTE_EN,HOLIDAY_EN,english,missingEnglish,drawEnglishFooter} from './translations.mjs';
+import {BRANCH_EN,SECTOR_EN,NOTE_EN,HOLIDAY_EN,english,missingEnglish,drawEnglishFooter,drawKoreanFooter} from './translations.mjs';
 import {validArt,drawArt,prepareArt} from './event-art.mjs';
 import {officialHoliday,holidayName,supportedHolidayYear} from './holidays.mjs';
-import {configured,readEvents,writeEvent,removeEvent,readHolidays,writeHoliday,readArt,writeArt} from './shared-store.mjs';
+import {configured,readEvents,writeEvent,removeEvent,readHolidays,writeHoliday,readArt,writeArt,readMonthState,writeMonthState} from './shared-store.mjs';
 import {BRANCHES,calendarDays,segments,validEvent,withDpi} from './calendar.mjs';
 const $=id=>document.getElementById(id);
 const isEnglish=document.documentElement.dataset.outputLanguage==='en';
@@ -19,11 +19,32 @@ if(Number.isInteger(queryYear)&&queryYear>=1900&&queryYear<=2200&&Number.isInteg
 function outputHoliday(day){const name=holidayName(day,state.holidays),row=state.holidays.find(r=>r.id===day);return !isEnglish||!name?name:row?.mode==='custom'?english(row,'name'):HOLIDAY_EN[name]||name;}
 function status(message){$('status').textContent=message;}
 function save(){try{localStorage.setItem(VIEW_KEY,JSON.stringify({year:state.year,month:state.month,branch:state.branch}));}catch{}}
+let monthState=null,monthReady=false,monthLoading=false;
+const monthId=()=>`${state.year}-${String(state.month).padStart(2,'0')}`;
+async function syncMonthState(){
+ const id=monthId();if(monthLoading||busy)return;monthLoading=true;renderMonthState();
+ try{const row=await readMonthState(id);if(id===monthId()){monthState=row;monthReady=true;}}
+ catch{if(id===monthId()){monthReady=false;}}
+ finally{monthLoading=false;renderMonthState();if(id!==monthId())void syncMonthState();}
+}
+function renderMonthState(){
+ const row=monthState?.id===monthId()?monthState:null;
+ $('month-draft').disabled=!monthReady||busy||monthLoading;$('month-draft').checked=Boolean(row?.is_draft);
+ $('month-state').textContent=!monthReady?'월 상태 연결 필요 · 추가 SQL과 연결을 확인해 주세요.':`${state.year}년 ${state.month}월 · ${row?.is_draft?'수정중':'완료'}`;
+ $('month-state').classList.toggle('draft',Boolean(row?.is_draft));
+}
+$('month-draft').onchange=async()=>{
+ const id=monthId(),is_draft=$('month-draft').checked,row=monthState?.id===id?monthState:null;busy=true;renderMonthState();
+ try{const saved=await writeMonthState({id,is_draft},row?.version);if(id===monthId())monthState=saved;}
+ catch(error){status(error.message);}
+ finally{busy=false;renderMonthState();await syncMonthState();}
+};
 let sharedReady=false,syncing=false,busy=false,activeVersion,holidayVersion,holidaysReady=false,artReady=false,artVersion,artImage='';
 const artImages=new Map();
 async function syncEvents(){
  if(!configured||syncing||busy||drag||views.some(view=>view.gesture)||$('editor').open)return;
  syncing=true;
+ void syncMonthState();
  try{
   const [events,holidays,art]=await Promise.allSettled([readEvents(),readHolidays(),readArt()]);
   if(art.status==='fulfilled'){try{await cacheArt(art.value);}catch{art.status='rejected';}}
@@ -58,7 +79,7 @@ async function cacheArt(rows){
 function fitText(ctx,text,x,y,width,font,color='#fff',align='left'){
  ctx.font=font;ctx.fillStyle=color;ctx.textAlign=align;
  ctx.save();ctx.translate(x,y);const measured=ctx.measureText(text).width;
- if(measured>width)ctx.scale(width/measured,1);ctx.fillText(text,0,0);ctx.restore();ctx.textAlign='left';
+ if(measured>width)ctx.font=font.replace(/([\d.]+)px/,(_,size)=>`${Number(size)*width/measured}px`);ctx.fillText(text,0,0);ctx.restore();ctx.textAlign='left';
 }
 function drawEnglishHoliday(ctx,name,x,y,width){
  ctx.font='700 14px Pretendard';ctx.fillStyle='#ef3117';ctx.textAlign='right';
@@ -87,11 +108,11 @@ function drawCard(view,piece){
  const x=GRID.x+start*GRID.cw,w=(end-start+1)*GRID.cw;
  const y=GRID.y+row*GRID.rh+(lanes===1?67:GRID.rh-h*lanes)+lane*h;
  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();ctx.fillStyle=BRANCHES[event.branch].color;ctx.fillRect(x,y,w,h);
- const narrow=end===start;
+ const narrow=end===start,showLogo=event.show_logo!==false;
  const mark=marks[BRANCHES[event.branch].mark];
  // The supplied SVG supplies the mark; layout and editable text are rendered independently.
  if(isEnglish){
- const textX=x+38*scale,textW=w-45*scale;ctx.drawImage(mark.small,x+8*scale,y+17*scale,21*scale,21*scale);
+ const textX=x+(showLogo?38:8)*scale,textW=w-(showLogo?45:15)*scale;if(showLogo)ctx.drawImage(mark.small,x+8*scale,y+17*scale,21*scale,21*scale);
  if(narrow){
  fitText(ctx,BRANCH_EN[event.branch],textX,y+15*scale,textW,`700 ${12*scale}px Pretendard`);
  fitText(ctx,english(event,'sector',SECTOR_EN),textX,y+29*scale,textW,`500 ${13*scale}px Pretendard`);
@@ -103,13 +124,13 @@ function drawCard(view,piece){
  fitText(ctx,event.time,infoX,y+25*scale,infoW,`500 ${15*scale}px Pretendard`);
  fitText(ctx,english(event,'note',NOTE_EN),infoX,y+39*scale,infoW,`500 ${10*scale}px Pretendard`);
  }
- }else if(narrow){ctx.drawImage(mark.small,x+8.38*scale,y+9*scale,35*scale,35*scale);
- const textX=x+51.46*scale,textW=w-58.46*scale,centerX=textX+textW/2;
+ }else if(narrow){if(showLogo)ctx.drawImage(mark.small,x+8.38*scale,y+9*scale,35*scale,35*scale);
+ const textX=x+(showLogo?51.46:7)*scale,textW=w-(showLogo?58.46:14)*scale,centerX=textX+textW/2;
  fitText(ctx,event.sector,centerX,y+26*scale,textW,`700 ${21*scale}px Pretendard`,'#fff','center');
  fitText(ctx,event.time,centerX,y+42.98*scale,textW,`500 ${12*scale}px Pretendard`,'#fff','center');
  }else{
- ctx.drawImage(mark.large,x+8.38*scale,y+7.35*scale,38*scale,38*scale);
- const infoW=94*scale,infoX=x+w-infoW-7*scale,nameX=x+49*scale,nameW=infoX-nameX-10*scale;
+ if(showLogo)ctx.drawImage(mark.large,x+8.38*scale,y+7.35*scale,38*scale,38*scale);
+ const infoW=94*scale,infoX=x+w-infoW-7*scale,nameX=x+(showLogo?49:7)*scale,nameW=infoX-nameX-10*scale;
  fitText(ctx,event.sector,nameX+nameW/2,y+34*scale,nameW,`700 ${22*scale}px Pretendard`,'#fff','center');
  fitText(ctx,event.time,infoX,y+25*scale,infoW,`500 ${15*scale}px Pretendard`);
  fitText(ctx,event.note,infoX,y+39*scale,infoW,`500 ${12*scale}px Pretendard`);
@@ -136,7 +157,7 @@ function renderMonth(view){
    else fitText(ctx,name,x,y+49,GRID.cw-24,'700 16px Pretendard','#ef3117','right');
   }
  });ctx.textAlign='left';
- if(isEnglish)drawEnglishFooter(ctx,marks);
+ if(isEnglish)drawEnglishFooter(ctx,marks);else drawKoreanFooter(ctx,marks);
  overlay.replaceChildren();view.gesture=null;
  if(view.offset!==0)return;
  days.forEach((day,i)=>{const el=document.createElement('button');el.className='cell';el.dataset.index=i;el.setAttribute('aria-label',`${day} 세팅 일정 추가`);position(el,{x:GRID.x+i%7*GRID.cw,y:GRID.y+Math.floor(i/7)*GRID.rh,w:GRID.cw,h:GRID.rh});el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();create(view,i,i);}});overlay.append(el);});
@@ -144,6 +165,7 @@ function renderMonth(view){
 }
 function render(){
  if(!ready)return;
+ const selectedMonth=monthId();if($('month-state').dataset.month!==selectedMonth){$('month-state').dataset.month=selectedMonth;monthReady=false;void syncMonthState();}renderMonthState();
  $('link-ko').href=`index.html?year=${state.year}&month=${state.month}`;
  $('link-en').href=`en.html?year=${state.year}&month=${state.month}`;
  drag=null;
@@ -228,7 +250,7 @@ $('previous-month').onclick=()=>moveMonth(-1);$('next-month').onclick=()=>moveMo
 function changeMonth(){const year=Number($('year').value),month=Number($('month').value);if(!Number.isInteger(year)||year<1900||year>2200){status('년도는 1900~2200 사이로 입력해 주세요.');return;}state.year=year;state.month=month;save();render();}
 $('year').onchange=changeMonth;$('month').onchange=changeMonth;$('branch').onchange=()=>{state.branch=$('branch').value;sectors();save();};
 function editorSectors(){const select=$('edit-sector-choice'),value=$('edit-sector').value;select.replaceChildren();for(const sector of BRANCHES[$('edit-branch').value].sectors)select.add(new Option(sector,sector));select.add(new Option('직접 입력',''));select.value=BRANCHES[$('edit-branch').value].sectors.includes(value)?value:'';}
-function openEditor(e){if(!sharedReady){status('공용 서버 연결이 필요합니다. 연결 후 다시 시도해 주세요.');return;}activeVersion=e.version;active=e.id??null;for(const key of ['branch','sector','start','end','time','note'])$(`edit-${key}`).value=e[key];$('edit-sector-en').value=e.sector_en||SECTOR_EN[e.sector]||'';$('edit-note-en').value=e.note_en||NOTE_EN[e.note]||'';editorSectors();$('editor-title').textContent=active?'세팅 일정 수정':'세팅 일정 추가';$('editor-save').textContent=active?'수정 저장':'일정 추가';$('delete').hidden=!active;$('form-error').textContent='';$('holiday-date').value=e.start;loadHolidayEditor();$('art-date').value=e.start;loadArtEditor();$('editor').showModal();}
+function openEditor(e){if(!sharedReady){status('공용 서버 연결이 필요합니다. 연결 후 다시 시도해 주세요.');return;}$('edit-show-logo').checked=e.show_logo!==false;activeVersion=e.version;active=e.id??null;for(const key of ['branch','sector','start','end','time','note'])$(`edit-${key}`).value=e[key];$('edit-sector-en').value=e.sector_en||SECTOR_EN[e.sector]||'';$('edit-note-en').value=e.note_en||NOTE_EN[e.note]||'';editorSectors();$('editor-title').textContent=active?'세팅 일정 수정':'세팅 일정 추가';$('editor-save').textContent=active?'수정 저장':'일정 추가';$('delete').hidden=!active;$('form-error').textContent='';$('holiday-date').value=e.start;loadHolidayEditor();$('art-date').value=e.start;loadArtEditor();$('editor').showModal();}
 function edit(id){const e=state.events.find(e=>e.id===id);if(e)openEditor(e);}
 $('close').onclick=()=>$('editor').close();
 $('editor').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
@@ -302,7 +324,7 @@ $('holiday-save').onclick=async()=>{
  catch(error){$('holiday-error').textContent=error.message+' 입력 내용은 유지됩니다. 다른 사용자가 수정했을 수 있으니 창을 다시 열어 확인해 주세요.';}
  finally{editorBusy(false);}
 };
-$('edit-form').onsubmit=async e=>{e.preventDefault();if(busy)return;const next={id:active??crypto.randomUUID(),sector_en:$('edit-sector-en').value.trim(),note_en:$('edit-note-en').value.trim()};for(const key of ['branch','sector','start','end','time','note'])next[key]=$(`edit-${key}`).value.trim();if(!validEvent(next)||!next.sector||!next.time||!next.note){$('form-error').textContent='내용과 날짜를 확인해 주세요. 종료일은 시작일 이후여야 합니다.';return;}
+$('edit-form').onsubmit=async e=>{e.preventDefault();if(busy)return;const next={id:active??crypto.randomUUID(),show_logo:$('edit-show-logo').checked,sector_en:$('edit-sector-en').value.trim(),note_en:$('edit-note-en').value.trim()};for(const key of ['branch','sector','start','end','time','note'])next[key]=$(`edit-${key}`).value.trim();if(!validEvent(next)||!next.sector||!next.time||!next.note){$('form-error').textContent='내용과 날짜를 확인해 주세요. 종료일은 시작일 이후여야 합니다.';return;}
  editorBusy(true);$('form-error').textContent='공용 서버에 저장 중…';
  try{const saved=await writeEvent(next,activeVersion);state.events=[...state.events.filter(e=>e.id!==saved.id),saved];render();$('editor').close();status('공용 서버에 저장했습니다.');}
  catch(error){$('form-error').textContent=error.message+' 입력 내용은 유지됩니다.';}

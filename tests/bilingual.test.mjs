@@ -59,7 +59,7 @@ test('separate page entries share Korean editor and export exactly the selected 
  for(const entry of [ko,en]){assert.match(entry,/lang="ko"/);assert.match(entry,/src="page.mjs"/);}
  for(const id of ['edit-sector-en','edit-note-en','art-name-en','holiday-name-en'])assert.ok(page.includes(id));
  assert.match(app,/\$\{language\}-150dpi\.png/);assert.match(app,/en\.html\?year=\$\{state.year\}&month=\$\{state.month\}/);
- const calls=[];drawEnglishFooter({save(){},restore(){},fillRect(){},drawImage(){},fillText(text){calls.push(text);}},Object.fromEntries(['nam','seo','bus'].map(k=>[k,{small:{}}])));
+ const calls=[];drawEnglishFooter({measureText(text){return {width:text.length*8};},save(){},restore(){},fillRect(){},drawImage(){},fillText(text){calls.push(text);}},Object.fromEntries(['nam','seo','bus'].map(k=>[k,{small:{}}])));
  assert.ok(calls.includes('Busan National University'));assert.ok(calls.includes('The gym opens after route setting is complete.'));
  assert.equal(HOLIDAY_EN['추석'],'Chuseok');
 });

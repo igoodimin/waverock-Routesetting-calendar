@@ -11,5 +11,12 @@ export function drawEnglishFooter(ctx,marks){
  badge('NAMCHEON',445,1204,122,'#2b2b2b','nam');badge('SEOMYEON',571,1204,120,'#287338','seo');
  badge('Busan National University',445,1264,213,'#245fab','bus');
  ctx.fillStyle='#171717';ctx.font='700 14px Pretendard';ctx.fillText('· OPEN SETTING :',708,1220);ctx.fillText('· CLOSE SETTING :',708,1280);
- ctx.font='500 14px Pretendard';ctx.fillText('All areas except the setting zone remain open.',718,1237,300);ctx.fillText('The gym opens after route setting is complete.',718,1297,300);ctx.restore();
+ const line=(text,y)=>{ctx.font='500 14px Pretendard';const width=ctx.measureText(text).width;if(width>300)ctx.font=`500 ${14*300/width}px Pretendard`;ctx.fillText(text,718,y);};line('All areas except the setting zone remain open.',1237);line('The gym opens after route setting is complete.',1297);ctx.restore();
+}
+export function drawKoreanFooter(ctx,marks){
+ const badge=(text,x,w,color,mark)=>{ctx.fillStyle=color;ctx.fillRect(x,1198,w,22);ctx.drawImage(marks[mark].small,x-5,1195,28,28);ctx.fillStyle='#fff';ctx.font='500 12px Pretendard';ctx.fillText(text,x+(mark==='bus'?29:33),1214);};
+ ctx.save();ctx.textAlign='left';
+ badge('남천점',628,80,'#2b2b2b','nam');badge('서면점',716,83,'#287338','seo');badge('부산대점',938,79,'#245fab','bus');
+ ctx.fillStyle='#171717';ctx.font='700 18px Pretendard';ctx.fillText('오픈 세팅',550,1216);ctx.fillText('클로즈 세팅',842,1216);
+ ctx.font='500 16px Pretendard';ctx.fillText('세팅 섹터 외 센터 이용 가능',550,1243);ctx.fillText('세팅 완료 후 센터 오픈',842,1243);ctx.restore();
 }

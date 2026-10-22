@@ -13,9 +13,9 @@ test('portrait and landscape crops stay centered without distortion',()=>{
  assert.deepEqual(coverRect(500,1000,200,200),[0,250,500,500]);
 });
 test('text event uses requested color and center; image events only draw image',()=>{
- const calls=[];const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(...args){calls.push(['fill',this.fillStyle,...args]);},fillText(...args){calls.push(['text',this.textAlign,this.textBaseline,...args]);},drawImage(...args){calls.push(['image',...args]);}};
+ const calls=[];const ctx={measureText(text){return {width:text.length*10};},save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(...args){calls.push(['fill',this.fillStyle,...args]);},fillText(...args){calls.push(['text',this.textAlign,this.textBaseline,...args]);},drawImage(...args){calls.push(['image',...args]);}};
  drawArt(ctx,row,null,10,20,100,80);
- assert.deepEqual(calls,[['fill','#e4c64f',11,21,98,78],['text','center','middle','이벤트',60,60,82]]);
+ assert.deepEqual(calls,[['fill','#e4c64f',11,21,98,78],['text','center','middle','이벤트',60,60]]);
  calls.length=0;drawArt(ctx,{...row,image:'data:image/jpeg;base64,AAAA'},{width:200,height:100},10,20,100,80);
  assert.equal(calls.length,1);assert.equal(calls[0][0],'image');
  calls.length=0;drawArt(ctx,{...row,enabled:false},null,0,0,100,80);assert.equal(calls.length,0);
@@ -38,9 +38,9 @@ test('shared event creation, reload, update and version conflict',async()=>{
 test('calendar renders background, event art, setting cards, then dates',async()=>{
  const {readFile}=await import('node:fs/promises');const source=await readFile(new URL('../app.mjs',import.meta.url),'utf8');
  const body=source.slice(source.indexOf('function renderMonth(view){'),source.indexOf('\nfunction render(){'));
- const calls=[];const ctx={save(){},restore(){},setTransform(){},clearRect(){},drawImage(){calls.push('background');},fillText(){calls.push('date');}};
- const render=new Function('calendarDays','segments','state','bg','drawArt','artImages','GRID','drawCard','holidayName','fitText','isEnglish','outputHoliday',body+';return renderMonth;')(
- ()=>['2026-10-13'],()=>[{}],{events:[],art:[row],holidays:[]},{},()=>calls.push('art'),new Map(),{x:0,y:0,cw:100,rh:80},()=>calls.push('card'),()=>'',()=>{},false,()=> '');
+ const calls=[];const ctx={measureText(text){return {width:text.length*10};},save(){},restore(){},setTransform(){},clearRect(){},drawImage(){calls.push('background');},fillText(){calls.push('date');}};
+ const render=new Function('calendarDays','segments','state','bg','drawArt','artImages','GRID','drawCard','holidayName','fitText','isEnglish','outputHoliday','drawKoreanFooter','marks',body+';return renderMonth;')(
+ ()=>['2026-10-13'],()=>[{}],{events:[],art:[row],holidays:[]},{},()=>calls.push('art'),new Map(),{x:0,y:0,cw:100,rh:80},()=>calls.push('card'),()=>'',()=>{},false,()=> '',()=>{},{});
  render({year:2026,month:10,ctx,offset:1,overlay:{replaceChildren(){}}});
  assert.deepEqual(calls,['background','art','card','date']);
 });
@@ -48,7 +48,7 @@ test('calendar renders background, event art, setting cards, then dates',async()
 test('event text supports three centered lines and saved font sizes',async()=>{
  assert.ok(validArt({...row,name:'첫 줄\n둘째 줄\n셋째 줄',font_size:36}));
  for(const patch of [{name:'1\n2\n3\n4'},{font_size:11},{font_size:37},{font_size:20.5},{font_size:null}])assert.ok(!validArt({...row,...patch}));
- const calls=[];const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(){},fillText(text,x,y){calls.push({text,x,y,font:this.font});}};
+ const calls=[];const ctx={measureText(text){return {width:text.length*10};},save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(){},fillText(text,x,y){calls.push({text,x,y,font:this.font});}};
  drawArt(ctx,{...row,name:'첫 줄\n둘째 줄\n셋째 줄',font_size:30},null,0,0,160,152);
  assert.deepEqual(calls,[{text:'첫 줄',x:80,y:40,font:'700 30px Pretendard'},{text:'둘째 줄',x:80,y:76,font:'700 30px Pretendard'},{text:'셋째 줄',x:80,y:112,font:'700 30px Pretendard'}]);
  const original=globalThis.fetch;const saved={...row,name:'첫 줄\n둘째 줄\n셋째 줄',font_size:30,version:1};let body;

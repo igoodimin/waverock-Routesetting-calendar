@@ -62,3 +62,19 @@ export async function writeArt(row,version){
  if(rows.length!==1)throw Error('다른 사용자가 이벤트를 변경했습니다. 창을 닫고 다시 열어 주세요.');
  return rows[0];
 }
+
+export function validMonthState(row){
+ return row&&typeof row.id==='string'&&/^(19\d{2}|20\d{2}|21\d{2}|2200)-(0[1-9]|1[0-2])$/.test(row.id)&&typeof row.is_draft==='boolean';
+}
+export async function readMonthState(id){
+ const rows=await request(`id=eq.${encodeURIComponent(id)}&select=*`,'GET',undefined,'calendar_months');
+ if(!Array.isArray(rows)||rows.length>1||!rows.every(row=>validMonthState(row)&&Number.isInteger(row.version)&&row.version>0))throw Error('월 상태 데이터를 확인해 주세요.');
+ return rows[0]??null;
+}
+export async function writeMonthState(row,version){
+ if(!validMonthState(row))throw Error('월 상태를 확인해 주세요.');
+ const query=version===undefined?'':`id=eq.${encodeURIComponent(row.id)}&version=eq.${version}`;
+ const rows=await request(query,version===undefined?'POST':'PATCH',{...row,version:version===undefined?1:version+1},'calendar_months');
+ if(rows.length!==1)throw Error('다른 사용자가 월 상태를 변경했습니다. 최신 상태를 확인하고 다시 시도해 주세요.');
+ return rows[0];
+}
