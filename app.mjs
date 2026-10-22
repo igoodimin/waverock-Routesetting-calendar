@@ -6,7 +6,7 @@ import {BRANCHES,calendarDays,segments,validEvent,withDpi} from './calendar.mjs'
 const $=id=>document.getElementById(id);
 const isEnglish=document.documentElement.dataset.outputLanguage==='en';
 const language=isEnglish?'EN':'KO';
-$('export').textContent=`중심 달 ${isEnglish?'영문':'국문'} PNG 다운로드 ↗`;
+$('export').textContent='PNG 다운로드';
 $(isEnglish?'link-en':'link-ko').setAttribute('aria-current','page');
 document.title=`WAVEROCK · ${isEnglish?'영문':'국문'} 세팅 달력`;
 const now=new Date();let state={year:now.getFullYear(),month:now.getMonth()+1,branch:'남천점',events:[],holidays:[],art:[]};
@@ -19,26 +19,44 @@ if(Number.isInteger(queryYear)&&queryYear>=1900&&queryYear<=2200&&Number.isInteg
 function outputHoliday(day){const name=holidayName(day,state.holidays),row=state.holidays.find(r=>r.id===day);return !isEnglish||!name?name:row?.mode==='custom'?english(row,'name'):HOLIDAY_EN[name]||name;}
 function status(message){$('status').textContent=message;}
 function save(){try{localStorage.setItem(VIEW_KEY,JSON.stringify({year:state.year,month:state.month,branch:state.branch}));}catch{}}
-let monthState=null,monthReady=false,monthLoading=false;
-const monthId=()=>`${state.year}-${String(state.month).padStart(2,'0')}`;
+const monthStates=new Map(),monthConnections=new Map();
+let monthLoading=false;
+const monthId=(year=state.year,month=state.month)=>`${year}-${String(month).padStart(2,'0')}`;
+function isMonthDraft(row,events,year,month){
+ if(row)return row.is_draft;
+ const first=monthId(year,month)+'-01',last=monthId(year,month)+'-'+new Date(Date.UTC(year,month,0)).getUTCDate();
+ return !events.some(event=>event.start<=last&&event.end>=first);
+}
 async function syncMonthState(){
- const id=monthId();if(monthLoading||busy)return;monthLoading=true;renderMonthState();
- try{const row=await readMonthState(id);if(id===monthId()){monthState=row;monthReady=true;}}
- catch{if(id===monthId()){monthReady=false;}}
- finally{monthLoading=false;renderMonthState();if(id!==monthId())void syncMonthState();}
+ if(monthLoading||busy)return;
+ const ids=views.filter(v=>v.year>=1900&&v.year<=2200).map(v=>monthId(v.year,v.month));
+ monthLoading=true;renderMonthState();
+ await Promise.all(ids.map(async id=>{
+  try{monthStates.set(id,await readMonthState(id));monthConnections.set(id,true);}
+  catch{monthConnections.set(id,false);}
+ }));
+ monthLoading=false;renderMonthState();
+ if(views.some(v=>v.year>=1900&&v.year<=2200&&!ids.includes(monthId(v.year,v.month))))void syncMonthState();
 }
 function renderMonthState(){
- const row=monthState?.id===monthId()?monthState:null;
- $('month-draft').disabled=!monthReady||busy||monthLoading;$('month-draft').checked=Boolean(row?.is_draft);
- $('month-state').textContent=!monthReady?'월 상태 연결 필요 · 추가 SQL과 연결을 확인해 주세요.':`${state.year}년 ${state.month}월 · ${row?.is_draft?'수정중':'완료'}`;
- $('month-state').classList.toggle('draft',Boolean(row?.is_draft));
+ for(const view of views){
+  const id=monthId(view.year,view.month),connected=monthConnections.get(id),draft=isMonthDraft(monthStates.get(id),state.events,view.year,view.month);
+  const enabled=connected===true&&sharedReady;
+  view.stateSwitch.disabled=!enabled||busy||monthLoading;
+  view.stateSwitch.setAttribute('aria-checked',String(!draft));
+  view.stateSwitch.setAttribute('aria-label',`${view.year}년 ${view.month}월 완료 상태`);
+  view.stateControl.classList.toggle('draft',draft);
+  view.stateMessage.textContent=connected===false?'월 상태 연결 필요 · SQL과 연결을 확인해 주세요.':!enabled?'월 상태 불러오는 중…':'';
+ }
 }
-$('month-draft').onchange=async()=>{
- const id=monthId(),is_draft=$('month-draft').checked,row=monthState?.id===id?monthState:null;busy=true;renderMonthState();
- try{const saved=await writeMonthState({id,is_draft},row?.version);if(id===monthId())monthState=saved;}
+async function toggleMonthState(view){
+ const id=monthId(view.year,view.month),row=monthStates.get(id);
+ const is_draft=!isMonthDraft(row,state.events,view.year,view.month);
+ busy=true;renderMonthState();
+ try{monthStates.set(id,await writeMonthState({id,is_draft},row?.version));}
  catch(error){status(error.message);}
  finally{busy=false;renderMonthState();await syncMonthState();}
-};
+}
 let sharedReady=false,syncing=false,busy=false,activeVersion,holidayVersion,holidaysReady=false,artReady=false,artVersion,artImage='';
 const artImages=new Map();
 async function syncEvents(){
@@ -176,7 +194,6 @@ function renderMonth(view){
 }
 function render(){
  if(!ready)return;
- const selectedMonth=monthId();if($('month-state').dataset.month!==selectedMonth){$('month-state').dataset.month=selectedMonth;monthReady=false;void syncMonthState();}renderMonthState();
  $('link-ko').href=`index.html?year=${state.year}&month=${state.month}`;
  $('link-en').href=`en.html?year=${state.year}&month=${state.month}`;
  drag=null;
@@ -187,14 +204,23 @@ function render(){
   views=months.map(({year,month,offset})=>{
    const panel=document.createElement('article');panel.className=`month-panel${offset===0?' primary-month':''}`;
    const heading=document.createElement('div');heading.className='month-heading';
-   const title=document.createElement('h2');title.textContent=`${year}년 ${month}월${offset===0?' · 중심 달':''}`;
+   const title=document.createElement('h2');title.textContent=`${year}년 ${month}월`;
    const download=document.createElement('button');download.textContent=`${isEnglish?'영문':'국문'} PNG ↓`;download.setAttribute('aria-label',`${year}년 ${month}월 PNG 다운로드`);
-   heading.append(title,download);
+   const monthActions=document.createElement('div');monthActions.className='month-actions';
+   heading.append(title,monthActions);
    const paper=document.createElement('div');paper.className='paper';
    const canvas=document.createElement('canvas');canvas.width=2160;canvas.height=2700;canvas.setAttribute('aria-label',`${year}년 ${month}월 세팅 달력 미리보기`);
    const overlay=document.createElement('div');overlay.className='interaction';
-   paper.append(canvas,overlay);panel.append(heading,paper);$('calendar-views').append(panel);
-   const view={year,month,offset,canvas,ctx:canvas.getContext('2d'),overlay};
+   const stateControl=document.createElement('div');stateControl.className='month-state-control';
+   const draftLabel=document.createElement('span');draftLabel.textContent='수정중';draftLabel.className='draft-label';
+   const doneLabel=document.createElement('span');doneLabel.textContent='완료';doneLabel.className='done-label';
+   const stateSwitch=document.createElement('button');stateSwitch.type='button';stateSwitch.className='month-state-switch';stateSwitch.setAttribute('role','switch');
+   const stateMessage=document.createElement('p');stateMessage.className='month-state-message';stateMessage.setAttribute('role','status');
+   stateControl.append(draftLabel,stateSwitch,doneLabel);
+   monthActions.append(stateControl,download);
+   paper.append(canvas,overlay);panel.append(heading,stateMessage,paper);$('calendar-views').append(panel);
+   const view={year,month,offset,canvas,ctx:canvas.getContext('2d'),overlay,stateControl,stateSwitch,stateMessage};
+   stateSwitch.onclick=()=>toggleMonthState(view);
    if(offset!==0){
     const allowed=year>=1900&&year<=2200;
     overlay.setAttribute('role','button');overlay.tabIndex=allowed?0:-1;
@@ -209,7 +235,9 @@ function render(){
    download.onclick=()=>exportMonth(view,download);bindInteraction(view);return view;
   });
   $('calendar-views').dataset.months=key;
+  void syncMonthState();
  }
+ renderMonthState();
  views.forEach(renderMonth);
  const first=views[0].days[0],last=views[2].days[34];
  $('preview-title').textContent=`${state.year}년 ${state.month}월 중심 · 이전 / 다음 달`;

@@ -46,3 +46,15 @@ test('Korean footer includes reference wording and branch badges',()=>{
  const words=[];drawKoreanFooter({save(){},restore(){},fillRect(){},drawImage(){},fillText(t){words.push(t);}},Object.fromEntries(['nam','seo','bus'].map(k=>[k,{small:{}}])));
  for(const text of ['오픈 세팅','클로즈 세팅','세팅 섹터 외 센터 이용 가능','세팅 완료 후 센터 오픈','남천점','서면점','부산대점'])assert.ok(words.includes(text));
 });
+
+test('month status defaults use actual month overlap and preserve manual choices',async()=>{
+ const source=await readFile(new URL('../app.mjs',import.meta.url),'utf8');
+ const body=source.slice(source.indexOf('function isMonthDraft('),source.indexOf('async function syncMonthState('));
+ const draft=new Function('monthId',body+';return isMonthDraft;')((y,m)=>`${y}-${String(m).padStart(2,'0')}`);
+ assert.equal(draft(null,[],2026,10),true);
+ assert.equal(draft(null,[event],2026,10),false);
+ assert.equal(draft(null,[event],2026,11),true);
+ assert.equal(draft(null,[{start:'2026-09-30',end:'2026-10-01'}],2026,10),false);
+ assert.equal(draft({is_draft:false},[],2026,10),false);
+ assert.equal(draft({is_draft:true},[event],2026,10),true);
+});

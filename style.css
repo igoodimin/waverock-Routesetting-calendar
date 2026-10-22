@@ -36,3 +36,34 @@ main{max-width:2100px;grid-template-columns:240px minmax(0,1fr);gap:28px;padding
 .language-nav{display:flex;gap:12px;margin-left:auto}.language-nav a{color:inherit;padding:6px 10px;border:1px solid currentColor;border-radius:6px;text-decoration:none}.language-nav a[aria-current="page"]{background:#e4c64f;color:#251d19}#translation-warning{color:#a14200}
 
 .toggle{display:flex;align-items:center;gap:8px;margin-top:14px}.toggle input{width:auto;margin:0;accent-color:#287338}#month-state{font-size:14px;font-weight:700}#month-state.draft{color:#ad4800;background:#fff0cf;padding:10px;border-radius:6px}
+
+.month-state-control{display:flex;align-items:center;justify-content:center;gap:10px;margin:0 0 12px;font-size:13px;color:#818476}
+.month-state-switch{position:relative;width:52px;height:30px;min-height:30px;padding:0;border-radius:20px;background:#bfc2c7;flex-shrink:0}
+.month-state-switch::after{content:"";position:absolute;width:26px;height:26px;top:2px;left:2px;border-radius:50%;background:white;box-shadow:0 1px 3px #0003;transition:transform .15s}
+.month-state-switch[aria-checked="true"]{background:#1684fc}
+.month-state-switch[aria-checked="true"]::after{transform:translateX(22px)}
+.month-state-control.draft .draft-label{color:#ad4800;font-weight:700}
+.month-state-control:not(.draft) .done-label{color:#1475db;font-weight:700}
+.month-state-message{font-size:11px;color:#ad4800;margin:0 0 12px;text-align:center}
+.month-state-message:empty{display:none}
+@media(max-width:760px){main{display:flex;flex-direction:column}.workspace{order:-1;margin-top:0}aside{padding-top:12px}}
+@media(prefers-reduced-motion:reduce){.month-state-switch::after{transition:none}}
+
+.month-actions{display:flex;flex-direction:column;align-items:center;gap:8px;margin-left:auto}.month-actions .month-state-control{margin:0;white-space:nowrap}.month-heading .month-state-switch{padding:0}
+
+.month-heading{flex-wrap:wrap}
+.month-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:8px;width:100%;margin-left:0}
+.month-actions .month-state-control{min-width:0;min-height:42px;padding:6px;gap:6px;border:1px solid #d4d8cb;border-radius:7px;font-size:11px}
+.month-actions>button{min-height:42px;width:100%;padding:6px;font-size:11px}
+.month-actions .month-state-switch{width:44px;height:26px;min-height:26px}
+.month-actions .month-state-switch::after{width:22px;height:22px}
+.month-actions .month-state-switch[aria-checked="true"]::after{transform:translateX(18px)}
+/* Keep the month title, status switch and download on one row. */
+.month-heading{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:6px}
+.month-heading h2{white-space:nowrap;font-size:12px;flex-shrink:0}
+.primary-month .month-heading h2{font-size:12px}
+.month-actions{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;width:auto;flex:1;min-width:0;gap:6px;margin-left:auto}
+.month-actions .month-state-control,.month-actions>button{flex:1;width:auto;min-height:36px;padding:4px;font-size:10px}
+.month-actions .month-state-control{gap:4px;border:0;border-radius:0}
+
+.month-actions{flex:0 0 auto;justify-content:flex-end;gap:6px}.month-actions .month-state-control,.month-actions>button{flex:0 0 auto}.month-actions .month-state-control{justify-content:flex-end}
