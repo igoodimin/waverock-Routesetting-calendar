@@ -33,7 +33,7 @@ main{max-width:2100px;grid-template-columns:240px minmax(0,1fr);gap:28px;padding
 
 #art-name{display:block;width:100%;border:1px solid #d4d8cb;background:#fff;border-radius:7px;padding:12px;font:500 14px Pretendard;color:#283020;margin-top:7px;resize:vertical;line-height:1.4}#art-name:focus{outline:2px solid #70835c;outline-offset:2px}
 
-.language-nav{display:flex;gap:12px;margin-left:auto}.language-nav a{color:inherit;padding:6px 10px;border:1px solid currentColor;border-radius:6px;text-decoration:none}.language-nav a[aria-current="page"]{background:#e4c64f;color:#251d19}#translation-warning{color:#a14200}
+.language-nav{display:flex;gap:4px;margin-left:auto;padding:4px;border:1px solid #d8dbd0;border-radius:10px;background:#eeefe7}.language-nav a{color:#737c68;padding:8px 14px;border:0;border-radius:7px;text-decoration:none;font-size:12px;font-weight:700;line-height:1.4}.language-nav a:hover{background:#e1e5d8;color:#344c31}.language-nav a[aria-current="page"]{background:#344c31;color:#fff}.language-nav a:focus-visible{outline:2px solid #70835c;outline-offset:2px}#translation-warning{color:#a14200}
 
 .toggle{display:flex;align-items:center;gap:8px;margin-top:14px}.toggle input{width:auto;margin:0;accent-color:#287338}#month-state{font-size:14px;font-weight:700}#month-state.draft{color:#ad4800;background:#fff0cf;padding:10px;border-radius:6px}
 
@@ -67,3 +67,51 @@ main{max-width:2100px;grid-template-columns:240px minmax(0,1fr);gap:28px;padding
 .month-actions .month-state-control{gap:4px;border:0;border-radius:0}
 
 .month-actions{flex:0 0 auto;justify-content:flex-end;gap:6px}.month-actions .month-state-control,.month-actions>button{flex:0 0 auto}.month-actions .month-state-control{justify-content:flex-end}
+
+/* Collapsible controls leave the full desktop width for calendar previews. */
+main.settings-collapsed{grid-template-columns:40px minmax(0,1fr)}
+#settings-panel[hidden]{display:none}
+.settings-sidebar{min-width:0;border-right:1px solid #d8dbd0;padding-right:18px}
+.settings-collapsed .settings-sidebar{padding-right:0;border-right:0}
+#settings-toggle{display:flex;align-items:center;justify-content:center;width:40px;height:40px;padding:9px;margin:0 0 16px;background:transparent;color:#858585}
+#settings-toggle:hover{background:#e7eadd;color:#344529}
+.schedule-list summary{cursor:pointer;font-size:15px;font-weight:700;color:#38412f;padding:10px 0}
+.schedule-list summary span{margin-left:9px;font-size:12px;color:#89917e}
+.schedule-list summary:focus-visible{outline:2px solid #70835c;outline-offset:2px}
+.schedule-list[open] summary{margin-bottom:8px}
+
+header{height:auto;min-height:78px;gap:20px;padding-top:16px;padding-bottom:16px;flex-wrap:nowrap;overflow-x:auto}
+.header-intro{display:flex;align-items:center;gap:20px;flex-shrink:0}
+.header-intro h1{font-size:30px;letter-spacing:-1px;margin:0;white-space:nowrap}
+.header-intro p{font-size:13px;line-height:1.5;color:#818476;margin:0;white-space:nowrap}
+header .badge,header .language-nav{flex-shrink:0;white-space:nowrap}
+#settings-toggle{position:relative}
+#settings-toggle::after{content:attr(data-tooltip);position:absolute;top:50%;left:calc(100% + 8px);transform:translateY(-50%);padding:7px 10px;border-radius:6px;background:#30342e;color:#fff;font-size:12px;font-weight:500;line-height:1.4;white-space:nowrap;pointer-events:none;opacity:0;visibility:hidden;z-index:10;box-shadow:0 2px 8px #0002}
+#settings-toggle:hover::after,#settings-toggle:focus-visible::after{opacity:1;visibility:visible}
+
+#settings-toggle svg{width:22px;height:22px;flex-shrink:0}
+#settings-panel{padding-top:0}
+#settings-panel>section:first-child{border-top:0;padding-top:0}
+.preview-top{justify-content:flex-end}
+.preview-top span:first-child{font-weight:500;color:#8d9385}
+@media(max-width:850px){.preview-top{display:none}}
+
+@media(max-width:760px){
+ header{gap:12px;padding:16px 20px;overflow-x:visible;flex-wrap:wrap}
+ .header-intro{min-width:0;gap:0}
+ .header-intro p,header .badge{display:none}
+ .header-intro h1{font-size:28px}
+ header .language-nav{gap:2px;padding:3px}
+ .language-nav a{padding:8px 10px}
+}
+
+@media(max-width:760px){
+ .workspace{display:contents}
+ .calendar-views{order:-1}
+ .schedule-list{order:1}
+}
+
+@media(max-width:760px){
+ #settings-toggle{display:none}
+ #settings-panel[hidden]{display:block}
+}

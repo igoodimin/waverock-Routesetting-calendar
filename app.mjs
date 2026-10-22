@@ -240,7 +240,6 @@ function render(){
  renderMonthState();
  views.forEach(renderMonth);
  const first=views[0].days[0],last=views[2].days[34];
- $('preview-title').textContent=`${state.year}년 ${state.month}월 중심 · 이전 / 다음 달`;
  $('range').textContent=`표시 기간 ${first} ~ ${last} · 월별 5주 고정`;
  $('previous-month').disabled=state.year===1900&&state.month===1;
  $('next-month').disabled=state.year===2200&&state.month===12;
