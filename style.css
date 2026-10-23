@@ -117,4 +117,4 @@ header .badge,header .language-nav{flex-shrink:0;white-space:nowrap}
 }
 
 .preview-top{align-items:center;gap:12px}.preview-top #refresh{padding:7px 12px;font-size:12px;white-space:nowrap}
-.link-button{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:13px 15px;border-radius:7px;background:#e7eadd;color:#344529;font:700 14px Pretendard;text-decoration:none}.link-button:hover{background:#dde2cf}
+.link-button{display:flex;justify-content:center;align-items:center;text-align:center;word-break:keep-all;margin-top:8px;padding:13px 15px;border-radius:7px;background:#e7eadd;color:#344529;font:700 14px Pretendard;text-decoration:none}.link-button:hover{background:#dde2cf}
