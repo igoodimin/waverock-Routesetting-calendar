@@ -16,9 +16,13 @@ try {const saved=JSON.parse(localStorage.getItem(VIEW_KEY)||'null');
 }catch{}
 const query=new URLSearchParams(location.search),queryYear=Number(query.get('year')),queryMonth=Number(query.get('month'));
 if(Number.isInteger(queryYear)&&queryYear>=1900&&queryYear<=2200&&Number.isInteger(queryMonth)&&queryMonth>=1&&queryMonth<=12){state.year=queryYear;state.month=queryMonth;}
+if(Object.hasOwn(BRANCHES,query.get('branch')))state.branch=query.get('branch');
 function outputHoliday(day){const name=holidayName(day,state.holidays),row=state.holidays.find(r=>r.id===day);return !isEnglish||!name?name:row?.mode==='custom'?english(row,'name'):HOLIDAY_EN[name]||name;}
 function status(message){$('status').textContent=message;}
-function save(){try{localStorage.setItem(VIEW_KEY,JSON.stringify({year:state.year,month:state.month,branch:state.branch}));}catch{}}
+// 지점별 세팅 이미지 추출기로 지금 보고 있는 지점·월을 넘깁니다. 국문 달력에만 표시합니다.
+const SECTOR_IMAGE_URL='https://igoodimin.github.io/waverock-sector-image/';
+function sectorImageLink(){const link=$('sector-image-link');if(!link)return;if(isEnglish){link.remove();return;}link.href=`${SECTOR_IMAGE_URL}?${new URLSearchParams({branch:state.branch,year:state.year,month:state.month})}`;}
+function save(){sectorImageLink();try{localStorage.setItem(VIEW_KEY,JSON.stringify({year:state.year,month:state.month,branch:state.branch}));}catch{}}
 const monthStates=new Map(),monthConnections=new Map();
 let monthLoading=false,savingMonth=null;
 const monthId=(year=state.year,month=state.month)=>`${year}-${String(month).padStart(2,'0')}`;
@@ -95,7 +99,7 @@ async function syncEvents(){
 function editorBusy(value){busy=value;if(!value)queueMicrotask(flushRefresh);for(const el of $('edit-form').elements)el.disabled=value;if(!value)$('holiday-name').disabled=$('holiday-name-en').disabled=$('holiday-mode').value==='off';}
 for(let i=1;i<=12;i++)$('month').add(new Option(`${i}월`,i));
 for(const id of ['branch','edit-branch'])for(const branch of Object.keys(BRANCHES))$(id).add(new Option(branch,branch));
-$('year').value=state.year;$('month').value=state.month;$('branch').value=state.branch;
+$('year').value=state.year;$('month').value=state.month;$('branch').value=state.branch;sectorImageLink();
 function sectors(){const select=$('sector');select.replaceChildren();for(const s of BRANCHES[$('branch').value].sectors)select.add(new Option(s,s));}
 sectors();
 let views=[];
